@@ -230,7 +230,7 @@ styles = ['gradient-glass.md', 'vector-illustration.md']
 
 **重要：** 将此文件保存到：
 - 独立使用：`./slides_plan.json`
-- Skill 模式：`.claude/skills/ppt-generator/slides_plan.json`
+- Skill 模式：`.claude/skills/ppt-generator-pro/slides_plan.json`
 
 ### 阶段 3: 生成 PPT 图片
 
@@ -243,7 +243,7 @@ cd /path/to/ppt-generator
 
 **Skill 模式：**
 ```bash
-cd ~/.claude/skills/ppt-generator
+cd .claude/skills/ppt-generator-pro
 ```
 
 #### 3.2 执行生成命令
@@ -419,7 +419,7 @@ Skill 会按以下顺序查找 `.env` 文件：
 
 1. **脚本所在目录** - `./ppt-generator/.env`
 2. **向上查找项目根目录** - 直到找到包含 `.git` 或 `.env` 的目录
-3. **Claude Skill 标准位置** - `~/.claude/skills/ppt-generator/.env`
+3. **Claude Skill 标准位置** - `.claude/skills/ppt-generator-pro/.env`
 4. **系统环境变量** - 如果以上都未找到
 
 ### .env 文件示例
