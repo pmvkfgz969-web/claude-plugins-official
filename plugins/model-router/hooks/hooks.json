@@ -1,0 +1,15 @@
+{
+  "description": "Classe chaque prompt et injecte une consigne de routage vers le bon sous-agent",
+  "hooks": {
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"${CLAUDE_PLUGIN_ROOT}/hooks/route.py\""
+          }
+        ]
+      }
+    ]
+  }
+}
