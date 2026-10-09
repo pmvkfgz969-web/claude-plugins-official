@@ -1,16 +1,10 @@
 # model-router
 
-Mode d'économie de tokens. Chaque prompt est classé par une heuristique locale (aucun appel modèle), puis Claude reçoit la consigne de déléguer à un sous-agent au bon modèle :
+Un seul skill (`skills/model-router/SKILL.md`) : Claude classe chaque tâche (rapide / standard / complexe) et la délègue à un sous-agent Haiku, Sonnet ou Opus via le paramètre `model` de l'outil Agent.
 
-| Niveau | Sous-agent | Modèle | Cas typiques |
-|---|---|---|---|
-| quick | `router-quick` | Haiku | recherche, lecture, résumé, renommage, git trivial |
-| std | `router-standard` | Sonnet | implémentation, bug localisé, tests, rédaction |
-| deep | `router-deep` | Opus | architecture, refactor transverse, debug dur, sécurité, perf |
+Pas de hook, pas de script. Le déclenchement repose sur la description du skill (non garanti à 100 %) ; `/model-router` force l'application. Lancer la session sur Sonnet (`/model sonnet`).
 
-## Installation permanente (automatique)
-
-Dans `~/.claude/settings.json` :
+Installation permanente, dans `~/.claude/settings.json` :
 
 ```json
 {
@@ -21,16 +15,3 @@ Dans `~/.claude/settings.json` :
   "enabledPlugins": { "model-router@perso": true }
 }
 ```
-
-Puis relance Claude Code : le hook s'applique à toutes les sessions, sur Sonnet par défaut.
-
-## Utilisation
-
-- `/router on|off|status` — active/désactive (actif par défaut).
-- Forcer un niveau sur un prompt : préfixe `!quick`, `!std`, `!deep`, ou `!raw` (aucun routage).
-
-## Limites
-
-- Un hook ne peut pas changer le modèle de la session principale : celle-ci lit la consigne et délègue. Lance ta session sur **Sonnet** (`/model sonnet`) ; Opus en session principale annule l'essentiel du gain.
-- Le routage est heuristique (mots-clés + longueur). Ajuste les regex dans `hooks/route.py` à ton usage.
-- Déléguer coûte un aller-retour : sur une question d'une phrase, Claude répond directement.
