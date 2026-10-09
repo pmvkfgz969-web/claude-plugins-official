@@ -3156,6 +3156,16 @@
       "homepage": "https://docs.railway.com/ai/claude-code-plugin"
     },
     {
+      "name": "model-router",
+      "description": "Mode d'économie de tokens : classe chaque prompt (rapide / standard / complexe) et délègue le travail au sous-agent Haiku, Sonnet ou Opus le plus adapté.",
+      "author": {
+        "name": "Anthropic",
+        "email": "support@anthropic.com"
+      },
+      "source": "./plugins/model-router",
+      "category": "productivity"
+    },
+    {
       "name": "ralph-loop",
       "description": "Interactive self-referential AI loops for iterative development, implementing the Ralph Wiggum technique. Claude works on the same task repeatedly, seeing its previous work, until completion.",
       "author": {
