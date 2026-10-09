@@ -70,11 +70,10 @@ def main() -> None:
 
     agent, model = TIERS[tier]
     msg = (
-        f"[model-router] Niveau détecté : {tier} → sous-agent `{agent}` ({model}). "
-        f"Délègue l'exécution via l'outil Agent (subagent_type=\"{agent}\") avec un brief autonome et concis, "
-        "puis relaie sa conclusion sans la réécrire. "
-        "Exceptions : fais-le toi-même si tu es déjà au niveau ou en dessous, "
-        "ou si la réponse tient en une phrase sans outil. "
+        f"[model-router] OBLIGATOIRE : niveau {tier}. Ta première action est d'appeler l'outil Agent "
+        f"avec subagent_type=\"{agent}\" ({model}) et un brief autonome et concis ; "
+        "n'explore pas et ne modifie rien toi-même avant. Relaie ensuite sa conclusion sans la réécrire. "
+        "Seule exception : une réponse qui tient en une phrase sans aucun outil. "
         "Si le sous-agent signale une tâche plus dure que prévu, escalade d'un niveau."
     )
     print(json.dumps({

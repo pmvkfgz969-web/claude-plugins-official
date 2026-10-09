@@ -8,6 +8,22 @@ Mode d'économie de tokens. Chaque prompt est classé par une heuristique locale
 | std | `router-standard` | Sonnet | implémentation, bug localisé, tests, rédaction |
 | deep | `router-deep` | Opus | architecture, refactor transverse, debug dur, sécurité, perf |
 
+## Installation permanente (automatique)
+
+Dans `~/.claude/settings.json` :
+
+```json
+{
+  "model": "sonnet",
+  "extraKnownMarketplaces": {
+    "perso": { "source": { "source": "github", "repo": "pmvkfgz969-web/claude-plugins-official" } }
+  },
+  "enabledPlugins": { "model-router@perso": true }
+}
+```
+
+Puis relance Claude Code : le hook s'applique à toutes les sessions, sur Sonnet par défaut.
+
 ## Utilisation
 
 - `/router on|off|status` — active/désactive (actif par défaut).
