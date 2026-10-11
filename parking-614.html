@@ -672,7 +672,7 @@ function printSheet(r){
    <div class="plate"><small>Immatriculation</small><b>${esc(r.immat)}</b><span>${esc(r.modele)}</span></div>
    <p class="period">Du ${fr(r.du)} au ${fr(r.au)} (${nbDays(r)} jour${nbDays(r)>1?"s":""})</p>
    <dl><dt>NOM Prénom</dt><dd>${esc(r.nom)}</dd><dt>Agence</dt><dd>${esc(r.agence)}</dd><dt>Téléphone</dt><dd>${esc(fmtTel(r.tel))}</dd>
-   <dt>Motif de la demande</dt><dd>${esc(r.motif)}</dd><dt>Badge</dt><dd>${esc(r.badge||"Demande envoyée")}</dd></dl>
+   <dt>Motif de la demande</dt><dd>${esc(r.motif)}</dd></dl>
    <div class="foot">Demande validée le ${validated.toLocaleDateString("fr-FR")}. Cette fiche n'est valable que pour la période et le véhicule indiqués ci-dessus.</div>`;
   const old=document.title;
   document.title=("Stationnement Validé "+r.nom+" "+r.immat).replace(/[\\\/:*?"<>|]+/g," ").replace(/\s+/g," ").trim();
