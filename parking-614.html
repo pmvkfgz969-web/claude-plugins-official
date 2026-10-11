@@ -84,6 +84,8 @@ table.t{width:100%;border-collapse:collapse;font-size:13px}
 .modal .card{background:#fff;max-width:640px;width:100%}
 .toast{position:fixed;bottom:20px;left:20px;background:var(--blue);color:#fff;padding:12px 18px;border-bottom:3px solid var(--yellow);font-size:14px;z-index:20}
 .toast[hidden]{display:none}
+.sync{padding:8px 24px;font-size:12px;background:var(--blue-10);color:var(--blue);display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+.sync.bad{background:var(--ko-bg);color:var(--ko);font-size:14px}
 .mono{font-variant-numeric:tabular-nums}
 </style>
 </head>
@@ -96,6 +98,7 @@ table.t{width:100%;border-collapse:collapse;font-size:13px}
   <button role="tab" aria-selected="false" data-tab="admin">Administration</button>
 </nav>
 
+<div id="sync" class="sync"></div>
 <main>
 <!-- ================= DEMANDE ================= -->
 <section id="tab-demande">
@@ -133,7 +136,6 @@ table.t{width:100%;border-collapse:collapse;font-size:13px}
 
 <!-- ================= PARKING ================= -->
 <section id="tab-parking" hidden>
-  <div class="kpis" id="kpis"></div>
   <div class="tools">
     <button class="btn sec sm" id="prev">◀</button>
     <select id="month"></select>
@@ -154,11 +156,15 @@ table.t{width:100%;border-collapse:collapse;font-size:13px}
 <section id="tab-admin" hidden>
   <div id="login" class="card" style="max-width:380px">
     <h2>Accès administration</h2>
-    <label for="code">Code</label><input type="password" id="code" autocomplete="off">
+    <label for="mail">E-mail</label><input type="email" id="mail" autocomplete="username">
+    <label for="pwd">Mot de passe</label><input type="password" id="pwd" autocomplete="current-password">
     <div class="err" id="code-err"></div>
     <p><button class="btn" id="login-btn">Entrer</button></p>
   </div>
   <div id="adminpanel" hidden>
+    <h2>Statistiques</h2>
+    <div class="kpis" id="kpis"></div>
+    <h2>Demandes</h2>
     <div class="tools">
       <input id="q" type="search" placeholder="Rechercher (nom, plaque, agence…)" style="min-width:260px">
       <select id="fbadge"><option value="">Tous les badges</option></select>
@@ -170,10 +176,22 @@ table.t{width:100%;border-collapse:collapse;font-size:13px}
       <button class="btn sec sm" id="exp-json">Sauvegarde JSON</button>
       <button class="btn sec sm" id="imp-json">Restaurer JSON</button>
       <input type="file" id="file" accept=".json" hidden>
-      <button class="btn sec sm" id="logout">Quitter</button>
+      <span class="hint" id="who"></span><button class="btn sec sm" id="logout">Quitter</button>
     </div>
     <p class="hint" id="count"></p>
     <div class="scroll"><table class="t" id="tbl"></table></div>
+    <h2 style="margin-top:28px">Comptes administrateurs</h2>
+    <div class="grid">
+      <div class="scroll"><table class="t" id="admtbl"></table></div>
+      <form class="card" id="admform" novalidate>
+        <h3>Créer un administrateur</h3>
+        <label for="a-mail">E-mail</label><input id="a-mail" type="email" autocomplete="off">
+        <label for="a-pwd">Mot de passe (8 caractères minimum)</label><input id="a-pwd" type="password" autocomplete="new-password">
+        <label for="a-pwd2">Confirmer le mot de passe</label><input id="a-pwd2" type="password" autocomplete="new-password">
+        <div class="err" id="a-err"></div>
+        <p><button class="btn" type="submit">Créer le compte</button></p>
+      </form>
+    </div>
   </div>
 </section>
 </main>
@@ -206,20 +224,85 @@ table.t{width:100%;border-collapse:collapse;font-size:13px}
 "use strict";
 /* ---------- Paramètres ---------- */
 const CAPACITY = 12;
-const ADMIN_CODE = "614admin";               // à modifier ; protection d'interface seulement
 const MAIL_TO = "frederick.pocreaux@dachser.com";
-const STORE = "parking614.v1";
+const DATA_FILE = "parking614-data.js";      // fichier de données partagé, dans le même dossier que cette page
 const BADGES = ["Demande envoyée","Ok paramétré","Accès permanent"];
-const SEED = [{"nom":"MARTINEAU PAUL","agence":"501","tel":"0622500606","immat":"EN242SA","modele":"FORD","du":"2026-02-19","au":"2026-02-23","motif":"Personnel","badge":"Ok paramétré"},{"nom":"LARDIERE Anita","agence":"527","tel":"0649653709","immat":"GS 734 PM","modele":"Peugeot 3008 gris","du":"2026-01-02","au":"2026-01-07","motif":"Personnel","badge":"Ok paramétré"},{"nom":"LE REBELLER Thibaud","agence":"561","tel":"","immat":"FY-565-EQ","modele":"3008","du":"2026-01-05","au":"2026-01-09","motif":"Personnel","badge":"Ok paramétré"},{"nom":"RABOUINT PIERRE","agence":"527","tel":"0789516927","immat":"GL055DD","modele":"PEUGEOT 3008","du":"2026-01-09","au":"2026-01-11","motif":"Personnel","badge":"Ok paramétré"},{"nom":"TASSET AURELIE","agence":"527","tel":"0772420235","immat":"CN921SQ","modele":"208 GRISE","du":"2026-01-08","au":"2026-01-11","motif":"Personnel","badge":"Ok paramétré"},{"nom":"Nolwenn GAIGNARD","agence":"561","tel":"0609488445","immat":"FM-937-WA","modele":"Citroên DS3 couleur violette","du":"2026-01-10","au":"2026-01-17","motif":"Personnel","badge":"Ok paramétré"},{"nom":"TOUZE TOM","agence":"527","tel":"0613038606","immat":"GR481GV","modele":"CLI GRISE DACHSER","du":"2026-01-19","au":"2026-01-23","motif":"Personnel","badge":"Ok paramétré"},{"nom":"TURPIN SYLVIE","agence":"614","tel":"0620598006","immat":"DG933FG","modele":"POLO","du":"2026-01-22","au":"2026-01-25","motif":"Personnel","badge":"Accès permanent"},{"nom":"ANTARRIEU Frédérique","agence":"598","tel":"","immat":"GX 685 HN","modele":"Skoda Octavia","du":"2026-01-30","au":"2026-02-01","motif":"Personnel","badge":"Ok paramétré"},{"nom":"HEMERY Claudie","agence":"598","tel":"0678402738","immat":"FS 058 LF","modele":"TOYOTA CHR rouge et noir","du":"2026-01-25","au":"2026-02-08","motif":"Personnel","badge":"Ok paramétré"},{"nom":"RABOUINT PIERRE","agence":"527","tel":"0789516927","immat":"GL055DD","modele":"PEUGEOT 3008","du":"2026-02-09","au":"2026-02-14","motif":"Professionnel","badge":"Ok paramétré"},{"nom":"ABELARD François","agence":"598","tel":"","immat":"GR521GV","modele":"","du":"2026-02-09","au":"2026-02-14","motif":"Personnel","badge":"Accès permanent"},{"nom":"DZIRI CHADA","agence":"614","tel":"0673030971","immat":"DF-823-RW","modele":"Renault Captur beige","du":"2026-02-13","au":"2026-02-15","motif":"Personnel","badge":"Ok paramétré"},{"nom":"GELEBART LIONEL","agence":"519","tel":"0661219707","immat":"","modele":"PEUGEOT 5008","du":"2026-02-13","au":"2026-02-17","motif":"Personnel","badge":"Accès permanent"},{"nom":"GOUSSET Sylvain","agence":"598","tel":"0760440516","immat":"GG486TH","modele":"3008 PEUGEOT","du":"2026-02-13","au":"2026-02-18","motif":"Personnel","badge":"Ok paramétré"},{"nom":"LAFONT WILFRIED","agence":"598","tel":"","immat":"GJ889RN","modele":"3008 Grise","du":"2026-02-15","au":"2026-02-20","motif":"Personnel","badge":"Ok paramétré"},{"nom":"BORGET MANUELLA","agence":"614","tel":"","immat":"GW845TH","modele":"3008 NOIRE","du":"2026-02-19","au":"2026-02-22","motif":"Personnel","badge":"Accès permanent"},{"nom":"RAUD JIMMY","agence":"501","tel":"","immat":"CX598AV","modele":"BERLINGO BLANC","du":"2026-02-14","au":"2026-02-23","motif":"Personnel","badge":"Ok paramétré"},{"nom":"AUGEREAU FABRICE","agence":"527","tel":"0695449665","immat":"ES 595 BS","modele":"CAPTURE GRIS","du":"2026-02-20","au":"2026-02-23","motif":"Personnel","badge":"Ok paramétré"},{"nom":"LOUYER Julien","agence":"524","tel":"0785697272","immat":"GQ-815-SH","modele":"","du":"2026-02-23","au":"2026-02-25","motif":"Personnel","badge":"Accès permanent"},{"nom":"EDIN CAMILLE","agence":"609","tel":"0640078119","immat":"GN 261 LN","modele":"Clio Renault Dachser","du":"2026-02-23","au":"2026-02-26","motif":"Personnel","badge":"Accès permanent"},{"nom":"CHAUVET Laetitia","agence":"614","tel":"0608421651","immat":"GH633BL","modele":"FIAT 500","du":"2026-02-24","au":"2026-02-27","motif":"Personnel","badge":"Ok paramétré"},{"nom":"DELACOUX Anais (soeur)","agence":"614","tel":"","immat":"EH 558 ZQ","modele":"Clio","du":"2026-02-23","au":"2026-02-27","motif":"Personnel","badge":"Ok paramétré"},{"nom":"MARCHAND GREGORY","agence":"527","tel":"0687072645","immat":"DW285JK","modele":"3008","du":"2026-02-27","au":"2026-03-01","motif":"Personnel","badge":"Ok paramétré"},{"nom":"ELODIE GIGARD","agence":"614","tel":"","immat":"AX-986-DW","modele":"CLIO BLEU","du":"2026-02-27","au":"2026-03-01","motif":"Personnel","badge":"Accès permanent"},{"nom":"MAUDET TONY","agence":"598","tel":"","immat":"EQ736ND","modele":"DACIA","du":"2026-02-05","au":"2026-03-02","motif":"Personnel","badge":""},{"nom":"POIRIER Sophie","agence":"524","tel":"","immat":"","modele":"","du":"2026-02-27","au":"2026-03-02","motif":"Personnel","badge":"Ok paramétré"},{"nom":"GAUTIER Enzo","agence":"614","tel":"","immat":"945BEX44","modele":"","du":"2026-02-28","au":"2026-03-02","motif":"Personnel","badge":"Ok paramétré"},{"nom":"GAUTIER Enzo","agence":"614","tel":"","immat":"GP285GX","modele":"","du":"2026-02-28","au":"2026-03-02","motif":"Personnel","badge":"Ok paramétré"},{"nom":"GERFAUTL BERTRAND","agence":"598","tel":"0782528530","immat":"CE-342-YE","modele":"Lancia PHEDRA","du":"2026-03-01","au":"2026-03-06","motif":"Personnel","badge":"Ok paramétré"},{"nom":"GOURVIL Ronan","agence":"524","tel":"","immat":"BP017YZ","modele":"POLO","du":"2026-03-02","au":"2026-03-09","motif":"Personnel","badge":"Ok paramétré"},{"nom":"POUPET SABRINA","agence":"609","tel":"0607283087","immat":"BQ-986-CT","modele":"TOYOTA AVENSIS","du":"2026-02-27","au":"2026-03-14","motif":"Personnel","badge":"Ok paramétré"},{"nom":"POIRIER Mélina","agence":"527","tel":"0618582175","immat":"GX 779 BQ","modele":"308 NOIRE DACHSER","du":"2026-03-13","au":"2026-03-15","motif":"Personnel","badge":"Accès permanent"},{"nom":"BRETAULT Jacques","agence":"586","tel":"0671587804","immat":"HD322MV","modele":"SKODA ENYAQ","du":"2026-03-15","au":"2026-03-20","motif":"Personnel","badge":"Ok paramétré"},{"nom":"Maxime Fournereau","agence":"561","tel":"0659964143","immat":"DW-568-SN","modele":"\tRenault Clio 4 breack","du":"2026-03-06","au":"2026-03-20","motif":"Personnel","badge":"Ok paramétré"},{"nom":"VERONIQUE BLANC","agence":"561","tel":"0614931458","immat":"GN-267-AW","modele":"Peugeot 3008","du":"2026-03-19","au":"2026-03-22","motif":"Personnel","badge":"Accès permanent"},{"nom":"VERONIQUE BLANC","agence":"561","tel":"0614931458","immat":"HH-724-EC","modele":"VW Golf noire","du":"2026-03-19","au":"2026-03-22","motif":"Personnel","badge":"Accès permanent"},{"nom":"BODET Nelly","agence":"598","tel":"","immat":"DZ -766 – HY","modele":"","du":"2026-03-15","au":"2026-03-22","motif":"Personnel","badge":"Ok paramétré"},{"nom":"Vu avec Sébastien Nael","agence":"","tel":"","immat":"EW 179 RB","modele":"Scénic gris","du":"2026-03-19","au":"2026-03-25","motif":"Personnel","badge":"Ok paramétré"},{"nom":"LUCAS CHRISTOPHE","agence":"501","tel":"","immat":"GQ 929 PK","modele":"308 Noire","du":"2026-03-24","au":"2026-03-27","motif":"Professionnel","badge":"Ok paramétré"},{"nom":"BARRE Jean-Manuel","agence":"501","tel":"","immat":"EW 162 QS","modele":"308SW","du":"2026-03-21","au":"2026-03-28","motif":"Personnel","badge":"Ok paramétré"},{"nom":"BARRE Jean-Manuel","agence":"501","tel":"","immat":"GR 156 HH","modele":"C5 Aircross","du":"2026-03-21","au":"2026-03-28","motif":"Personnel","badge":"Ok paramétré"},{"nom":"BARRE Jean-Manuel","agence":"501","tel":"","immat":"EM 752 ZR","modele":"Seat Ateca","du":"2026-03-21","au":"2026-03-28","motif":"Personnel","badge":"Ok paramétré"},{"nom":"BARRE Jean-Manuel","agence":"501","tel":"","immat":"GR 823 CZ","modele":"Audi Q4","du":"2026-03-21","au":"2026-03-28","motif":"Personnel","badge":"Ok paramétré"},{"nom":"FLEURISSON VIVIANE","agence":"598","tel":"0663097616","immat":"CA246EL","modele":"PEUGEOT PARTNER","du":"2026-03-18","au":"2026-03-29","motif":"Personnel","badge":"Ok paramétré"},{"nom":"RICHARD Laurence","agence":"527","tel":"0672795211","immat":"DW612LZ","modele":"C4 Aircross","du":"2026-03-18","au":"2026-03-29","motif":"Personnel","badge":"Ok paramétré"},{"nom":"ALLETRU Isabelle","agence":"598","tel":"0665266620","immat":"GV-092-EA","modele":"MERCEDES","du":"2026-03-18","au":"2026-03-29","motif":"Personnel","badge":"Ok paramétré"},{"nom":"BILLAUD CAROLINE","agence":"527","tel":"0627227282","immat":"GM460WN","modele":"BMW GRISE","du":"2026-05-23","au":"2026-05-27","motif":"Personnel","badge":"Ok paramétré"},{"nom":"CAVOLEAU David","agence":"527","tel":"0632767755","immat":"dk560ev","modele":"audi q3","du":"2026-03-30","au":"2026-04-03","motif":"Personnel","badge":"Ok paramétré"},{"nom":"RABOUINT Pierre","agence":"527","tel":"0789516927","immat":"GL-055-DD","modele":"PEUGEOT 3008","du":"2026-03-30","au":"2026-04-03","motif":"Professionnel","badge":"Ok paramétré"},{"nom":"Antarrieu-Conan Frédérique","agence":"598","tel":"","immat":"gx 685 hn","modele":"skoda","du":"2026-04-01","au":"2026-04-04","motif":"Personnel","badge":"Accès permanent"},{"nom":"DZIRI CHADA","agence":"614","tel":"0673030971","immat":"DF-823-RW","modele":"Renault Captur beige","du":"2026-04-03","au":"2026-04-06","motif":"Personnel","badge":"Ok paramétré"},{"nom":"POIRIER ALBAN","agence":"524","tel":"","immat":"GM-169-HY","modele":"Golf Volkswagen","du":"2026-04-02","au":"2026-04-07","motif":"Personnel","badge":"Ok paramétré"},{"nom":"ABELARD François","agence":"598","tel":"","immat":"","modele":"","du":"2026-03-30","au":"2026-04-07","motif":"Personnel","badge":"Ok paramétré"},{"nom":"PY RENARD Isabelle","agence":"614","tel":"","immat":"DA132 ED","modele":"BMW NOIRE","du":"2026-03-30","au":"2026-04-07","motif":"Personnel","badge":"Ok paramétré"},{"nom":"MONSANGLANT FABIENNE","agence":"516","tel":"0684169152","immat":"FT935CJ","modele":"RENAULT CAPTURE GRIS","du":"2026-04-03","au":"2026-04-08","motif":"Personnel","badge":"Ok paramétré"},{"nom":"JOURNAUD Nathalie","agence":"527","tel":"0644209290","immat":"DL-042-EA","modele":"Peugeot 2008","du":"2026-04-05","au":"2026-04-08","motif":"Personnel","badge":"Ok paramétré"},{"nom":"BORGET MANUELLA","agence":"614","tel":"","immat":"DN-484-GE","modele":"TOURAN GRIS","du":"2026-04-30","au":"2026-05-03","motif":"Personnel","badge":"Accès permanent"},{"nom":"RABOUINT PIERRE","agence":"527","tel":"0789516927","immat":"GL-055-DD","modele":"PEUGEOT 3008","du":"2026-04-22","au":"2026-04-24","motif":"Professionnel","badge":"Ok paramétré"},{"nom":"MARCHAND GREGORY","agence":"527","tel":"0687072645","immat":"DW285JK","modele":"3008","du":"2026-04-14","au":"2026-04-17","motif":"Personnel","badge":"Ok paramétré"},{"nom":"LEFEUVRE Stefen","agence":"524","tel":"","immat":"FH-737-DD","modele":"Renault Clio","du":"2026-04-11","au":"2026-04-18","motif":"Personnel","badge":"Ok paramétré"},{"nom":"PIVETEAU Hervé","agence":"598","tel":"","immat":"HD095EG","modele":"","du":"2026-04-15","au":"2026-04-22","motif":"Personnel","badge":"Ok paramétré"},{"nom":"PAYS Aurélie","agence":"516","tel":"0612158339","immat":"FH-609-VT.","modele":"un Clio gris DACHSER","du":"2026-04-18","au":"2026-04-22","motif":"Professionnel","badge":"Ok paramétré"},{"nom":"EVAIN DIDIER","agence":"524","tel":"","immat":"HD-470-YT","modele":"Peugeot 2008","du":"2026-05-15","au":"2026-05-22","motif":"Personnel","badge":"Ok paramétré"},{"nom":"ROUSSEAU CAROLE","agence":"527","tel":"0631701352","immat":"GR4444GV","modele":"CLIO","du":"2026-04-19","au":"2026-04-22","motif":"Professionnel","badge":"Ok paramétré"},{"nom":"MARTIN FLORENT","agence":"561","tel":"0677738196","immat":"GW-894-VS","modele":"\tVW Golf noire","du":"2026-04-21","au":"2026-04-25","motif":"Professionnel","badge":"Ok paramétré"},{"nom":"BLANCHET MICKAEL","agence":"524","tel":"0608181081","immat":"DG 969 HN","modele":"Peugeot 308","du":"2026-05-02","au":"2026-05-09","motif":"Personnel","badge":"Ok paramétré"},{"nom":"Fournereau Maxime","agence":"561","tel":"0659964143","immat":"DW-568-SN","modele":"\tRenault Clio 4 break","du":"2026-05-01","au":"2026-05-03","motif":"Personnel","badge":"Ok paramétré"},{"nom":"NOVO Ophelie","agence":"527","tel":"0667413430","immat":"BP831NN","modele":"PEUGOET 308","du":"2026-05-01","au":"2026-05-03","motif":"Personnel","badge":"Ok paramétré"},{"nom":"CHIRON CLAIRE","agence":"519","tel":"0630296335","immat":"GG 805 HR","modele":"FORD TRANSIT","du":"2026-04-19","au":"2026-04-22","motif":"Professionnel","badge":"Ok paramétré"},{"nom":"BARON CELINE","agence":"527","tel":"0688971130","immat":"CB 640 EJ","modele":"KIA VENGA GRISE","du":"2026-05-08","au":"2026-05-15","motif":"Personnel","badge":"Ok paramétré"},{"nom":"DRAGULA PAULINE","agence":"","tel":"","immat":"DJ436YY.","modele":"Skoda Octavia","du":"2026-05-25","au":"2026-05-30","motif":"Personnel","badge":"Ok paramétré"},{"nom":"HUVELIN HELOISE","agence":"527","tel":"0622243925","immat":"CD166FS","modele":"FORD GRAND MAX","du":"2026-05-02","au":"2026-05-09","motif":"Personnel","badge":"Ok paramétré"},{"nom":"Jacques BRETAULT","agence":"586","tel":"0671587804","immat":"DN257HM","modele":"SKODA OCTAVIA","du":"2026-06-03","au":"2026-06-08","motif":"Personnel","badge":"Accès permanent"},{"nom":"GEAR ADRIEN","agence":"561","tel":"0661924663","immat":"AV-107-KS","modele":"BMW série 3","du":"2026-04-29","au":"2026-05-06","motif":"Personnel","badge":"Ok paramétré"},{"nom":"MAHIEUX PAULINE","agence":"561","tel":"0670558679","immat":"ES-057-HB","modele":"Peugeot 308 grise","du":"2026-04-18","au":"2026-04-22","motif":"Professionnel","badge":"Accès permanent"},{"nom":"FRICONNEAU Angélique","agence":"643","tel":"0649658263","immat":"FQ601ZF","modele":"2008","du":"2026-08-03","au":"2026-08-13","motif":"Personnel","badge":"Ok paramétré"},{"nom":"GUERRY FREDDY","agence":"501","tel":"","immat":"GN674VW","modele":"Peugeot 308 noir","du":"2026-05-07","au":"2026-05-11","motif":"Personnel","badge":"Accès permanent"},{"nom":"DZIRI CHADA","agence":"614","tel":"0673030971","immat":"FR-582-YG","modele":"golf Volkswagen grise","du":"2026-05-08","au":"2026-05-14","motif":"Personnel","badge":"Ok paramétré"},{"nom":"BROCHU JOCELYN","agence":"643","tel":"0685712102","immat":"HD-322-DW","modele":"véhicule PASSAT Noir Break","du":"2026-05-05","au":"2026-05-31","motif":"Professionnel","badge":"Ok paramétré"},{"nom":"Hutchins XAVIER","agence":"527","tel":"0658240601","immat":"GN 980 HW","modele":"","du":"2026-06-04","au":"2026-06-19","motif":"Personnel","badge":"Ok paramétré"},{"nom":"EDIN CAMILLE","agence":"609","tel":"","immat":"","modele":"","du":"2026-05-02","au":"2026-05-10","motif":"Professionnel","badge":"Accès permanent"},{"nom":"PIERRELÉE ALIX","agence":"501","tel":"","immat":"GV 095 WN","modele":"Clio noir","du":"2026-05-18","au":"2026-05-22","motif":"Professionnel","badge":"Ok paramétré"},{"nom":"DOAT Dominique","agence":"501","tel":"","immat":"BW 372 VM","modele":"Lancia Théma","du":"2026-05-18","au":"2026-05-22","motif":"Professionnel","badge":"Ok paramétré"},{"nom":"LE DERFF MAXIME","agence":"561","tel":"","immat":"GS-545-NF","modele":"Peugeot 2008 rouge","du":"2026-06-05","au":"2026-06-07","motif":"Personnel","badge":"Ok paramétré"},{"nom":"DEBROIZE ELISE","agence":"524","tel":"","immat":"GK-56-ZK","modele":"Peugeot 3008","du":"2026-05-23","au":"2026-05-30","motif":"Personnel","badge":"Ok paramétré"},{"nom":"BROCHU JOCELYN","agence":"643","tel":"","immat":"","modele":"","du":"2026-05-13","au":"2026-05-21","motif":"Personnel","badge":"Ok paramétré"},{"nom":"BOBINET Christian","agence":"531","tel":"0685942223","immat":"HK727JL","modele":"Q4","du":"2026-06-07","au":"2026-06-12","motif":"Professionnel","badge":"Accès permanent"},{"nom":"Virginie GONCALVES","agence":"598","tel":"33677054126","immat":"HB 725 GA","modele":"Renault R5","du":"2026-06-08","au":"2026-06-11","motif":"Professionnel","badge":"Ok paramétré"},{"nom":"Maximilien FORISSIER","agence":"598","tel":"","immat":"GX 856 HN.","modele":"","du":"2026-06-08","au":"2026-06-12","motif":"Professionnel","badge":"Ok paramétré"},{"nom":"BRITO EDGAR","agence":"524","tel":"0768630869","immat":"BM-899-EE","modele":"","du":"2026-05-19","au":"2026-05-31","motif":"Personnel","badge":"Accès permanent"},{"nom":"GIRARD ELODIE","agence":"614","tel":"","immat":"FZ 747 CX","modele":"CLIO BLEU","du":"2026-05-27","au":"2026-06-01","motif":"Personnel","badge":"Accès permanent"},{"nom":"CLAVIER CHARLY","agence":"561","tel":"0783223165","immat":"EJ-699-CA","modele":"Renault Clio 4 blanche","du":"2026-05-16","au":"2026-05-23","motif":"Personnel","badge":"Ok paramétré"},{"nom":"DZIRI CHADA","agence":"614","tel":"0673030971","immat":"FR-582-YG","modele":"golf Volkswagen grise","du":"2026-05-25","au":"2026-05-29","motif":"Personnel","badge":"Ok paramétré"},{"nom":"CHARLIER CEDRIC","agence":"521","tel":"","immat":"GM-246-WM","modele":"Peugeot 3008","du":"2026-06-08","au":"2026-06-12","motif":"Personnel","badge":"Ok paramétré"},{"nom":"le dily BERTRAND","agence":"561","tel":"","immat":"HC-639-LT","modele":"VW Passat","du":"2026-06-08","au":"2026-06-12","motif":"Professionnel","badge":"Accès permanent"},{"nom":"JEAN VICTOR MARYLINE","agence":"519","tel":"","immat":"BP 437 KP","modele":"KANGOO","du":"2026-05-07","au":"2026-05-14","motif":"Personnel","badge":"Ok paramétré"},{"nom":"ARNAUD MARINA (mari)","agence":"614","tel":"","immat":"GV 365 HV","modele":"Peugeot expert","du":"2026-04-25","au":"2026-04-27","motif":"Personnel","badge":"Accès permanent"},{"nom":"BACLE Laetitia","agence":"643","tel":"0678352110","immat":"HG – 815 – VE (49)","modele":"BMW X1","du":"2026-08-06","au":"2026-08-17","motif":"Personnel","badge":"Ok paramétré"},{"nom":"GAUDIN JOHAN","agence":"561","tel":"0650983053","immat":"DH-242-BK","modele":"Citröen C4 grise","du":"2026-05-15","au":"2026-05-18","motif":"Personnel","badge":"Ok paramétré"},{"nom":"GACHET NATHALIE","agence":"598","tel":"0607621577","immat":"GP 091 LP","modele":"BMX Blanche","du":"2026-05-14","au":"2026-05-21","motif":"Personnel","badge":"Ok paramétré"},{"nom":"DOAT Dominique","agence":"501","tel":"","immat":"CR 767 CN","modele":"Mercedes Classe A","du":"2026-06-08","au":"2026-06-12","motif":"Professionnel","badge":"Ok paramétré"},{"nom":"COUSSEAU Christophe","agence":"501","tel":"0695280121","immat":"GP-139-PS","modele":"DS4","du":"2026-05-16","au":"2026-05-23","motif":"Personnel","badge":"Ok paramétré"},{"nom":"CHARRIER Christian","agence":"EXT","tel":"","immat":"FP630NQ","modele":"Strail Noir","du":"2026-05-21","au":"2026-05-25","motif":"Personnel","badge":"Ok paramétré"},{"nom":"BAUDET MORGANE","agence":"561","tel":"0649370503","immat":"ET-930-LX","modele":"VW Polo blanche","du":"2026-05-01","au":"2026-05-05","motif":"Personnel","badge":"Ok paramétré"},{"nom":"RAYNARD THOMAS","agence":"598","tel":"","immat":"GQ-037-DP.","modele":"","du":"2026-06-08","au":"2026-06-12","motif":"Professionnel","badge":"Ok paramétré"},{"nom":"MANDIN GAETAN","agence":"598","tel":"","immat":"HG 524 FQ","modele":"","du":"2026-06-08","au":"2026-06-12","motif":"Professionnel","badge":"Ok paramétré"},{"nom":"LEFEUVRE Stefen","agence":"524","tel":"","immat":"FH 737 DD","modele":"Clio","du":"2026-08-24","au":"2026-08-31","motif":"Personnel","badge":"Ok paramétré"},{"nom":"BROCHU JOCELYN","agence":"643","tel":"0685712102","immat":"HD-322-DW","modele":"PASSAT Noir Break","du":"2026-06-08","au":"2026-06-12","motif":"Professionnel","badge":"Ok paramétré"},{"nom":"EON KILLIAN","agence":"561","tel":"","immat":"FC-232-WW","modele":"Audi A3 noire","du":"2026-08-08","au":"2026-08-08","motif":"Personnel","badge":"Ok paramétré"},{"nom":"GIRARD Elodie","agence":"614","tel":"","immat":"","modele":"308","du":"2026-06-01","au":"2026-06-13","motif":"Personnel","badge":"Ok paramétré"},{"nom":"POUTIER Antonin","agence":"516","tel":"0679691276","immat":"GY-769-TW","modele":"Dacia Sandero blanche","du":"2026-09-03","au":"2026-09-10","motif":"Personnel","badge":"Ok paramétré"},{"nom":"CHARRIER PHILIPPE - 5635","agence":"527","tel":"0652915031","immat":"FY 144 KP","modele":"PEUGEOT 2008 BLEU","du":"2026-09-05","au":"2026-09-10","motif":"Personnel","badge":"Ok paramétré"},{"nom":"BERTHOME FRANCOIS","agence":"501","tel":"","immat":"HH 055 GT","modele":"Volkswagen ID.3","du":"2026-06-08","au":"2026-06-12","motif":"Professionnel","badge":"Ok paramétré"},{"nom":"RAYNARD THOMAS","agence":"598","tel":"","immat":"GQ 037 DP","modele":"BERLINE","du":"2026-06-08","au":"2026-06-11","motif":"Professionnel","badge":"Ok paramétré"},{"nom":"GASQ Romain","agence":"516","tel":"0640898830","immat":"HC439XV","modele":"","du":"2026-06-08","au":"2026-06-12","motif":"Professionnel","badge":"Accès permanent"},{"nom":"BELKESSA ANABELLE","agence":"614","tel":"0677838228","immat":"GC-005-EM","modele":"Mégane","du":"2026-06-11","au":"2026-06-18","motif":"Personnel","badge":"Accès permanent"},{"nom":"JEHANNO Hervé","agence":"561","tel":"0759940803","immat":"ER 250 PJ","modele":"Golfe Bleue","du":"2026-08-08","au":"2026-08-25","motif":"Personnel","badge":"Ok paramétré"},{"nom":"DESCHAMPS LOLITA","agence":"524","tel":"0684082559","immat":"GJ-020-XC","modele":"BMW","du":"2026-06-13","au":"2026-06-19","motif":"Personnel","badge":"Accès permanent"},{"nom":"ZINGGREBE isabelle","agence":"526","tel":"0674805142","immat":"GK-233-ZM","modele":"Golf","du":"2026-06-13","au":"2026-06-24","motif":"Personnel","badge":"Ok paramétré"},{"nom":"PEROT CELINE","agence":"614","tel":"0625635666","immat":"FM 899 HH","modele":"Peugeot 3008","du":"2026-06-18","au":"2026-06-21","motif":"Personnel","badge":"Accès permanent"},{"nom":"JEAN VICTOR MARYLINE","agence":"519","tel":"","immat":"BP 437 KP","modele":"KANGOO","du":"2026-06-18","au":"2026-07-04","motif":"Personnel","badge":"Ok paramétré"},{"nom":"NOUNTCHONGOUE Jérémie","agence":"EXT","tel":"","immat":"FX 717 BX","modele":"OPel Vivaro","du":"2026-06-19","au":"2026-06-28","motif":"Personnel","badge":"Ok paramétré"},{"nom":"EDIN CAMILLE","agence":"609","tel":"","immat":"CZ 299 YR","modele":"","du":"2026-06-20","au":"2026-06-24","motif":"Personnel","badge":"Accès permanent"},{"nom":"LE CALONNEC MICKAE","agence":"527","tel":"0624583777","immat":"GP822HM","modele":"3008 noir","du":"2026-06-20","au":"2026-06-27","motif":"Personnel","badge":"Ok paramétré"},{"nom":"HEMERY Claudie","agence":"","tel":"","immat":"FS 058 LF","modele":"TOYOTA CHR rouge et noir","du":"2026-06-25","au":"2026-07-11","motif":"Personnel","badge":"Ok paramétré"},{"nom":"MASCARO VALERIE","agence":"516","tel":"0607614887","immat":"EG820PC","modele":"AUDI Q5 GRIS","du":"2026-05-24","au":"2026-05-31","motif":"Personnel","badge":"Ok paramétré"},{"nom":"SOULARD WILLY","agence":"527","tel":"","immat":"DC124ZQ","modele":"PEUGEOT 308","du":"2026-06-27","au":"2026-07-04","motif":"Personnel","badge":"Ok paramétré"},{"nom":"IKWORIA OSEBOR FELIX","agence":"643","tel":"","immat":"FR331QR","modele":"Véhicule DACHSER","du":"2026-06-29","au":"2026-07-03","motif":"Professionnel","badge":"Ok paramétré"},{"nom":"GIUSTINIANI ANTOINE","agence":"561","tel":"","immat":"DG-947-RM.","modele":"Renault Scénic gris","du":"2026-07-01","au":"2026-07-07","motif":"Personnel","badge":"Ok paramétré"},{"nom":"GELEBART LIONEL","agence":"519","tel":"0661219707","immat":"","modele":"peugeot 5008 Blanc","du":"2026-07-02","au":"2026-07-22","motif":"Personnel","badge":"Accès permanent"},{"nom":"ROUSSEAU CAROLE","agence":"521","tel":"0647842623","immat":"FM392-ax","modele":"GOLF","du":"2026-07-05","au":"2026-07-10","motif":"Personnel","badge":"Ok paramétré"},{"nom":"LARDIERE ANITA","agence":"519","tel":"0251644024","immat":"GX384MN","modele":"PEUGEOT 3008","du":"2026-07-07","au":"2026-07-17","motif":"Personnel","badge":"Ok paramétré"},{"nom":"POURTIER Antonin","agence":"516","tel":"0679691276","immat":"GY-769-TW","modele":"Dacia Sandero blanche","du":"2026-07-11","au":"2026-07-18","motif":"Personnel","badge":"Ok paramétré"},{"nom":"GUITTON FRANCOIS","agence":"643","tel":"0658736822","immat":"EV-898-HT","modele":"Fiat Tipo","du":"2026-08-10","au":"2026-08-19","motif":"Personnel","badge":"Ok paramétré"},{"nom":"PIERRELEE Alix","agence":"501","tel":"","immat":"GV095WN","modele":"Clio Noire","du":"2026-04-12","au":"2026-04-17","motif":"Professionnel","badge":"Ok paramétré"},{"nom":"DOAT Dominique","agence":"501","tel":"","immat":"880AMP44","modele":"Mercedes Classe A","du":"2026-04-12","au":"2026-04-17","motif":"Professionnel","badge":"Ok paramétré"},{"nom":"Antarrieu Frédérique","agence":"598","tel":"","immat":"GX 685 HN","modele":"Skoda Octavia","du":"2026-05-01","au":"2026-05-08","motif":"Personnel","badge":"Ok paramétré"},{"nom":"ROY Jean-Francois","agence":"501","tel":"","immat":"GM 931CP","modele":"3008","du":"2026-05-10","au":"2026-05-22","motif":"Personnel","badge":"Ok paramétré"},{"nom":"LOUYER Julien","agence":"524","tel":"0637463683","immat":"GQ 815 SH","modele":"Peugeot 3008","du":"2026-07-11","au":"2026-07-28","motif":"Personnel","badge":"Accès permanent"},{"nom":"CHETITAH Stéphanie","agence":"EXT","tel":"","immat":"EQ 876 YB","modele":"Renault Kadjar","du":"2026-05-15","au":"2026-05-18","motif":"Personnel","badge":"Ok paramétré"},{"nom":"GUERRY FREDDY","agence":"501","tel":"","immat":"GN674VW","modele":"Peugeot 308 noir","du":"2026-07-12","au":"2026-07-26","motif":"Personnel","badge":"Accès permanent"},{"nom":"GASQ Romain","agence":"516","tel":"","immat":"GH207TL","modele":"","du":"2026-07-13","au":"2026-07-20","motif":"Personnel","badge":"Accès permanent"},{"nom":"OLLIVIER Christophe","agence":"518","tel":"","immat":"GQ 445 VX","modele":"","du":"2026-07-13","au":"2026-07-27","motif":"Personnel","badge":"Accès permanent"},{"nom":"EON KILLIAN","agence":"561","tel":"","immat":"FC-232-WW","modele":"Audi A3 noire","du":"2026-07-14","au":"2026-07-14","motif":"Personnel","badge":"Ok paramétré"},{"nom":"CHARRIER NICOLAS","agence":"527","tel":"0625740311","immat":"ET945MD","modele":"SCENIS GRIS","du":"2026-07-15","au":"2026-07-25","motif":"Personnel","badge":"Accès permanent"},{"nom":"GACHET NATHALIE","agence":"598","tel":"0607621577","immat":"BMW blanche","modele":"GP 091 LP","du":"2026-09-03","au":"2026-09-12","motif":"Personnel","badge":"Ok paramétré"},{"nom":"LUCAS Christophe","agence":"501","tel":"","immat":"BA 228 SN","modele":"Clio noire","du":"2026-06-27","au":"2026-07-03","motif":"Personnel","badge":"Ok paramétré"},{"nom":"BLANCHET MARION","agence":"","tel":"0788055779","immat":"HL 855 AH","modele":"Audi Q3","du":"2026-08-11","au":"2026-08-22","motif":"Personnel","badge":"Ok paramétré"},{"nom":"SKVARIL MEGANE","agence":"614","tel":"0604029763","immat":"DB 866 HN","modele":"une Ford Focus couleur sable","du":"2026-07-27","au":"2026-08-10","motif":"Personnel","badge":"Ok paramétré"},{"nom":"DARTEIL Chrystele","agence":"609","tel":"","immat":"HA962QR","modele":"AUDI BREAK","du":"2026-07-31","au":"2026-08-16","motif":"Personnel","badge":"Accès permanent"},{"nom":"BROSSET Alice","agence":"643","tel":"","immat":"HK659YJ","modele":"Mercedes VITO","du":"2026-07-10","au":"2026-08-01","motif":"Personnel","badge":"Ok paramétré"},{"nom":"CHARRIER Christian","agence":"598","tel":"","immat":"BM120WL","modele":"Seat Ibiza","du":"2026-07-10","au":"2026-07-15","motif":"Personnel","badge":"Ok paramétré"},{"nom":"GOUSSET Sylvain","agence":"598","tel":"0760440516","immat":"HK 642 XM","modele":"Skoda Enyaq","du":"2026-08-11","au":"2026-08-19","motif":"Personnel","badge":"Ok paramétré"},{"nom":"CHARRIER ELISA","agence":"598","tel":"0663100810","immat":"FF883LV","modele":"BMWX2","du":"2026-08-14","au":"2026-08-25","motif":"Personnel","badge":"Ok paramétré"},{"nom":"ANDRE NATHALIE","agence":"598","tel":"0632460068","immat":"KIA","modele":"FH-232-EK","du":"2026-09-24","au":"2026-09-27","motif":"Personnel","badge":"Ok paramétré"},{"nom":"ABELARD François","agence":"598","tel":"","immat":"GR521GV","modele":"","du":"2026-08-03","au":"2026-08-07","motif":"Professionnel","badge":"Accès permanent"},{"nom":"BROCHU JOCELYN","agence":"643","tel":"0685712102","immat":"HD322DW","modele":"PASSAT Noir Break","du":"2026-08-25","au":"2026-09-02","motif":"Personnel","badge":"Accès permanent"},{"nom":"MARTINEAU PAUL","agence":"501","tel":"0622500606","immat":"GC721XS","modele":"VOLKSWAGEN","du":"2026-08-27","au":"2026-09-02","motif":"Personnel","badge":"Ok paramétré"},{"nom":"THIBEAUD Coralie","agence":"614","tel":"0783107792","immat":"100ABP49","modele":"107 BLANCHE","du":"2026-08-07","au":"2026-08-14","motif":"Personnel","badge":"Ok paramétré"},{"nom":"BORGET MANUELLA","agence":"614","tel":"","immat":"GW845TH","modele":"3008","du":"2026-08-09","au":"2026-08-19","motif":"Personnel","badge":"Accès permanent"},{"nom":"BRITO Edgar","agence":"524","tel":"0768630869","immat":"BM 899  EE","modele":"","du":"2026-08-14","au":"2026-09-06","motif":"Personnel","badge":"Ok paramétré"},{"nom":"Vieira Valente - Aida - 28392","agence":"527","tel":"0667532213","immat":"BR-332-MK","modele":"Volkswagen Polo grise","du":"2026-07-31","au":"2026-08-16","motif":"Personnel","badge":"Ok paramétré"},{"nom":"CHAUVET Laetitia","agence":"614","tel":"0608421651","immat":"FA 485 XG","modele":"Peugeot 3008","du":"2026-07-25","au":"2026-08-10","motif":"Personnel","badge":"Ok paramétré"},{"nom":"CAVOLEAU NATHALIE - (05838)","agence":"527","tel":"0671399458","immat":"GF759WS","modele":"MODELE DS4 grise","du":"2026-08-26","au":"2026-09-07","motif":"Personnel","badge":"Ok paramétré"},{"nom":"PRAT LUC","agence":"516","tel":"0629862845","immat":"GE-181-DV","modele":"Peugeot 208 noire","du":"2026-08-31","au":"2026-09-04","motif":"Personnel","badge":"Ok paramétré"},{"nom":"GIRARD Elodie","agence":"610","tel":"","immat":"FN 943 NJ","modele":"Skoda grise","du":"2026-06-01","au":"2026-07-31","motif":"Personnel","badge":"Ok paramétré"},{"nom":"DZIRI Chada","agence":"610","tel":"0673030971","immat":"DF823RW","modele":"Renault Kaptur","du":"2026-07-24","au":"2026-07-26","motif":"Personnel","badge":"Ok paramétré"},{"nom":"MONTJARET LAURA","agence":"516","tel":"0767781487","immat":"CR-122-GC","modele":"Mercedes Noire","du":"2026-09-23","au":"2026-09-27","motif":"Personnel","badge":"Ok paramétré"},{"nom":"DZIRI Chada","agence":"610","tel":"0673030971","immat":"DF823RW","modele":"Renault Kaptur","du":"2026-08-14","au":"2026-08-31","motif":"Personnel","badge":"Ok paramétré"},{"nom":"FAURE MELANIE","agence":"527","tel":"0648258209","immat":"HK-394-RM","modele":"e208 - Dachser grise","du":"2026-10-15","au":"2026-10-18","motif":"Personnel","badge":"Ok paramétré"},{"nom":"DAUVE Cloe","agence":"598","tel":"0618241200","immat":"AK 218 BB","modele":"Fiat Panda","du":"2026-09-05","au":"2026-09-12","motif":"Personnel","badge":"Accès permanent"},{"nom":"GUILLET Simon","agence":"664","tel":"","immat":"","modele":"","du":"2026-08-23","au":"2026-09-10","motif":"Personnel","badge":"Accès permanent"},{"nom":"GASKA Pauline","agence":"598","tel":"","immat":"FA 404 AH","modele":"308","du":"2026-09-08","au":"2026-09-16","motif":"Personnel","badge":"Ok paramétré"},{"nom":"SUBILEAU David","agence":"527","tel":"0682993050","immat":"GZ 630 JP","modele":"Clio Grise DACHSER","du":"2026-09-26","au":"2026-10-03","motif":"Personnel","badge":"Ok paramétré"},{"nom":"NAEL Anne","agence":"609","tel":"","immat":"HB 734 XY","modele":"","du":"2026-09-07","au":"2026-09-17","motif":"Personnel","badge":"Ok paramétré"},{"nom":"LEFEUVRE Stefen","agence":"524","tel":"","immat":"FH 737 DD","modele":"Clio","du":"2026-09-10","au":"2026-09-18","motif":"Personnel","badge":"Ok paramétré"},{"nom":"TASSET AURELIE","agence":"527","tel":"0772420235","immat":"CN921SQ","modele":"208 GRISE PEUGEOT","du":"2026-09-24","au":"2026-09-28","motif":"Personnel","badge":"Ok paramétré"},{"nom":"JAULIN Céline","agence":"609","tel":"","immat":"CW 996 BT","modele":"Grand C4","du":"2026-09-16","au":"2026-09-20","motif":"Personnel","badge":"Ok paramétré"},{"nom":"FOURET Nicolas","agence":"516","tel":"0677636248","immat":"GK-003-RZ","modele":"GOLF 8 grise","du":"2026-09-18","au":"2026-09-20","motif":"Personnel","badge":"Ok paramétré"},{"nom":"RICHOU MICKAEL","agence":"","tel":"","immat":"DJ-723-FF","modele":"RENAULT MEGANE","du":"2026-09-14","au":"2026-09-18","motif":"Personnel","badge":"Ok paramétré"},{"nom":"BOSSARD Fabienne","agence":"598","tel":"","immat":"HD 700 MW","modele":"DS3","du":"2026-09-18","au":"2026-09-21","motif":"Personnel","badge":"Ok paramétré"},{"nom":"GIRAUD Leonore","agence":"614","tel":"","immat":"FR-995-VV","modele":"VW T CROSS","du":"2026-09-15","au":"2026-09-24","motif":"Personnel","badge":"Ok paramétré"},{"nom":"Perrine Manceau - 29331","agence":"527","tel":"0684025533","immat":"FW 415 AP","modele":"Suzuki Swift – Gris clair","du":"2026-09-20","au":"2026-09-27","motif":"Personnel","badge":"Ok paramétré"},{"nom":"MARCHAND Grégory (23568)","agence":"527","tel":"0687072645","immat":"DW 285 JK","modele":"Peugeot 3008","du":"2026-10-16","au":"2026-10-20","motif":"Personnel","badge":"Ok paramétré"},{"nom":"ESPEJA Elodie","agence":"516","tel":"0637198886","immat":"GA-219-FW","modele":"RENAULT Mégane bleu","du":"2026-12-25","au":"2026-12-27","motif":"Personnel","badge":"Ok paramétré"},{"nom":"CLOCHARD Coraline","agence":"609","tel":"","immat":"AT-651-DZ","modele":"207","du":"2026-09-26","au":"2026-10-02","motif":"Personnel","badge":"Ok paramétré"},{"nom":"SUBILEAU DAVID","agence":"527","tel":"0682993050","immat":"DZ 506 VF","modele":"3008 Blanc","du":"2026-09-26","au":"2026-10-03","motif":"Personnel","badge":"Ok paramétré"},{"nom":"ALAIN Yvon","agence":"516","tel":"0670488993","immat":"HE-095-QS","modele":"Renault Mégane Noire + BMW","du":"2026-09-20","au":"2026-10-03","motif":"Personnel","badge":"Ok paramétré"},{"nom":"GABORIT Annabelle","agence":"527","tel":"","immat":"GV 642 TV","modele":"DS3","du":"2026-09-27","au":"2026-10-04","motif":"Personnel","badge":"Ok paramétré"},{"nom":"ALLETRU Isabelle","agence":"598","tel":"0665266620","immat":"BR 713 KP","modele":"Volkswagen California","du":"2026-09-17","au":"2026-09-23","motif":"Personnel","badge":"Ok paramétré"},{"nom":"RAMBAUD Lucie","agence":"598","tel":"","immat":"GK 799 FX","modele":"","du":"2026-09-15","au":"2026-09-27","motif":"Personnel","badge":"Ok paramétré"},{"nom":"MICHAEL RICHOU 7971","agence":"","tel":"","immat":"DJ723FF","modele":"","du":"2026-10-12","au":"2026-10-16","motif":"Professionnel","badge":"Ok paramétré"},{"nom":"GELEBART LIONEL","agence":"","tel":"","immat":"FJ390YW","modele":"CLIO DACHSER","du":"2026-10-05","au":"2026-10-09","motif":"Professionnel","badge":"Ok paramétré"},{"nom":"JEAN VICTOR MARYLINE","agence":"519","tel":"","immat":"BP 437 KP","modele":"KANGOO","du":"2026-10-09","au":"2026-10-14","motif":"Personnel","badge":"Ok paramétré"},{"nom":"POIRIER MELINA","agence":"527","tel":"0638849839","immat":"GN-723-VV","modele":"Clio  Dachser - Grise","du":"2026-10-05","au":"2026-10-09","motif":"Professionnel","badge":"Accès permanent"},{"nom":"LE COZ VICTORIA","agence":"516","tel":"0786039384","immat":"EP-360-FH","modele":"FIAT GRISE","du":"2026-11-27","au":"2026-11-29","motif":"Personnel","badge":"Ok paramétré"},{"nom":"AUDOUIT Bastien","agence":"614","tel":"","immat":"EL 779 EW","modele":"BMW Serie 2","du":"2026-10-05","au":"2026-10-12","motif":"Personnel","badge":"Ok paramétré"},{"nom":"CHARRIER Alban","agence":"598","tel":"","immat":"HD157QA","modele":"Clio Dachser","du":"2026-10-04","au":"2026-10-09","motif":"Personnel","badge":"Ok paramétré"},{"nom":"GASNIER Anne Sophie","agence":"EXT","tel":"","immat":"AC 022 XL","modele":"BMW","du":"2026-10-14","au":"2026-10-20","motif":"Personnel","badge":"Ok paramétré"},{"nom":"CHARRIER Christian","agence":"EXT","tel":"","immat":"FP630NQ","modele":"Nissan xTrail","du":"2026-10-15","au":"2026-10-18","motif":"Personnel","badge":"Ok paramétré"},{"nom":"BERTHOME François","agence":"501","tel":"","immat":"HH 055 GT","modele":"","du":"2026-10-19","au":"2026-10-23","motif":"Professionnel","badge":"Ok paramétré"}];
 
-/* ---------- Données ---------- */
-let data = load();
-function load(){
-  try{ const s = localStorage.getItem(STORE); if(s) return JSON.parse(s); }catch(e){}
-  return SEED.map((r,i)=>({id:"s"+i,...r}));
-}
-function save(){ try{ localStorage.setItem(STORE, JSON.stringify(data)); }catch(e){ toast("Enregistrement local impossible (navigateur)."); } }
+/* ---------- Données partagées (fichier sur le dossier réseau) ---------- */
+let db = {requests:[],admins:[]};
+let data = db.requests;
+let loaded = false, fileHandle = null, admin = null, busy = false;
 const uid = ()=>"r"+Date.now().toString(36)+Math.random().toString(36).slice(2,6);
+const normalize = d => ({...d, requests:Array.isArray(d.requests)?d.requests:[], admins:Array.isArray(d.admins)?d.admins:[]});
+const serialize = d => "window.PARKING_DATA="+JSON.stringify(d)+";\n";
+
+function loadFile(){
+  return new Promise(res=>{
+    delete window.PARKING_DATA;
+    const s=document.createElement("script"); s.src=DATA_FILE+"?v="+Date.now();
+    s.onload=()=>{s.remove();res(window.PARKING_DATA||null)};
+    s.onerror=()=>{s.remove();res(null)};
+    document.head.appendChild(s);
+  });
+}
+async function refresh(){
+  const d=await loadFile();
+  if(d){ db=normalize(d); data=db.requests; loaded=true; }
+  setSync(); renderAll();
+  return loaded;
+}
+function setSync(){
+  const el=$("sync");
+  if(!loaded){ el.className="sync bad"; el.innerHTML="Fichier de données <b>"+DATA_FILE+"</b> introuvable : il doit se trouver dans le même dossier que cette page. <button class='btn sec sm' id='rf'>Réessayer</button>"; }
+  else { const t=db.updatedAt?new Date(db.updatedAt).toLocaleString("fr-FR"):"—";
+    el.className="sync"; el.innerHTML="Données partagées : "+data.length+" demandes · dernière mise à jour "+t+" <button class='btn sec sm' id='rf'>Actualiser</button>"; }
+  $("rf").onclick=refresh;
+}
+
+/* IndexedDB : mémorise le fichier autorisé en écriture */
+const idb=()=>new Promise((res,rej)=>{const r=indexedDB.open("parking614",1);r.onupgradeneeded=()=>r.result.createObjectStore("h");r.onsuccess=()=>res(r.result);r.onerror=()=>rej(r.error)});
+async function getH(){try{const d=await idb();return await new Promise(r=>{const q=d.transaction("h").objectStore("h").get("file");q.onsuccess=()=>r(q.result);q.onerror=()=>r(null)})}catch(e){return null}}
+async function setH(h){try{const d=await idb();d.transaction("h","readwrite").objectStore("h").put(h,"file")}catch(e){}}
+async function ensureWritable(){
+  if(!window.showOpenFilePicker) throw new Error("navigateur non compatible : utilisez Microsoft Edge ou Google Chrome");
+  let h=fileHandle||await getH();
+  if(h){
+    try{ let p=await h.queryPermission({mode:"readwrite"}); if(p!=="granted") p=await h.requestPermission({mode:"readwrite"});
+      if(p==="granted"){ fileHandle=h; return h; } }catch(e){}
+  }
+  const [nh]=await showOpenFilePicker({types:[{description:"Fichier de données du parking",accept:{"text/javascript":[".js"]}}],multiple:false});
+  if(nh.name!==DATA_FILE) throw new Error("sélectionnez le fichier "+DATA_FILE+" du dossier partagé");
+  if(await nh.requestPermission({mode:"readwrite"})!=="granted") throw new Error("autorisation d'écriture refusée");
+  await setH(nh); fileHandle=nh; return nh;
+}
+async function readHandle(h){
+  const t=await (await h.getFile()).text();
+  return JSON.parse(t.slice(t.indexOf("=")+1).replace(/;\s*$/,""));
+}
+/* Relit la dernière version du fichier, applique la modification, réécrit : limite les écrasements entre utilisateurs */
+async function commit(mutator){
+  const h=await ensureWritable();
+  const latest=normalize(await readHandle(h));
+  mutator(latest);
+  latest.updatedAt=new Date().toISOString();
+  const w=await h.createWritable(); await w.write(serialize(latest)); await w.close();
+  db=latest; data=db.requests; loaded=true; setSync(); renderAll();
+  return latest;
+}
+const saveErr = e => e&&e.name==="AbortError" ? "sélection du fichier annulée" : (e&&e.message)||"erreur inconnue";
+
+/* ---------- Comptes administrateurs ---------- */
+const hex=b=>[...b].map(x=>x.toString(16).padStart(2,"0")).join("");
+const unhex=s=>new Uint8Array(s.match(/../g).map(h=>parseInt(h,16)));
+async function hashPw(pw,salt){
+  const k=await crypto.subtle.importKey("raw",new TextEncoder().encode(pw),"PBKDF2",false,["deriveBits"]);
+  return hex(new Uint8Array(await crypto.subtle.deriveBits({name:"PBKDF2",hash:"SHA-256",salt:unhex(salt),iterations:100000},k,256)));
+}
+async function makeAdmin(email,pw){
+  const salt=hex(crypto.getRandomValues(new Uint8Array(16)));
+  return {email:email.trim().toLowerCase(),salt,hash:await hashPw(pw,salt),created:new Date().toISOString().slice(0,10)};
+}
+
 
 /* ---------- Dates ---------- */
 const iso = d => d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");
@@ -296,15 +379,17 @@ document.querySelectorAll("nav button").forEach(b=>b.addEventListener("click",()
   if(b.dataset.tab==="admin") renderAdmin();
 }));
 
+
 /* ---------- Demande ---------- */
-let lastRequest=null;
 $("du").min=todayIso; $("au").min=todayIso;
 $("du").addEventListener("change",()=>{ if($("du").value) $("au").min=$("du").value; });
-$("form").addEventListener("submit",ev=>{
+$("form").addEventListener("submit",async ev=>{
   ev.preventDefault();
   const v=readForm(), e=validate(v); showErrors(e);
-  $("result").innerHTML=""; lastRequest=null;
+  $("result").innerHTML="";
   if(Object.keys(e).length){ $("avail-hint").textContent="Corrigez les champs signalés."; return; }
+  await refresh();
+  if(!loaded){ $("avail-hint").textContent="Données partagées inaccessibles : vérification impossible."; return; }
   const req=clean(v), res=checkPeriod(req.du,req.au,data);
   $("avail-hint").textContent="Période du "+fr(req.du)+" au "+fr(req.au)+" ("+res.days.length+" jour"+(res.days.length>1?"s":"")+").";
   const strip=res.days.slice(0,62).map(d=>`<span class="${d.free>=4?"free":d.free>=1?"mid":"full"}" title="${fr(d.k)} : ${d.free} place(s) libre(s)">${d.free}</span>`).join("");
@@ -314,9 +399,8 @@ $("form").addEventListener("submit",ev=>{
     $("result").innerHTML=`<div class="result"><h3>Places disponibles sur toute la période</h3>
       <p>Minimum de <b>${res.minFree} place${res.minFree>1?"s":""} libre${res.minFree>1?"s":""}</b> sur ${CAPACITY} pendant la période demandée.</p>${legend}
       <p><button class="btn" id="send">Envoyer ma demande de configuration de badge</button></p>
-      <p class="hint">Un message Outlook préparé à l'attention de ${MAIL_TO} sera téléchargé : ouvrez-le et cliquez sur Envoyer.
+      <p class="hint">Au clic, la demande est enregistrée dans le fichier partagé, puis un message Outlook préparé à l'attention de ${MAIL_TO} est téléchargé : ouvrez-le et cliquez sur Envoyer.
       <a href="#" id="mailto">Sinon, ouvrir via la messagerie par défaut.</a></p></div>`;
-    lastRequest=req;
     $("send").onclick=()=>sendRequest(req,"eml");
     $("mailto").onclick=ev=>{ev.preventDefault(); sendRequest(req,"mailto");};
   }else{
@@ -326,6 +410,7 @@ $("form").addEventListener("submit",ev=>{
       <p class="hint">Vous pouvez raccourcir ou décaler vos dates et relancer la vérification.</p></div>`;
   }
 });
+
 function mailContent(r){
   const subject=`Demande de configuration de badge parking 614 – ${r.nom} – du ${fr(r.du)} au ${fr(r.au)}`;
   const lines=["Bonjour,","","Merci de configurer un badge pour le stationnement 614 :","",
@@ -334,10 +419,22 @@ function mailContent(r){
    "Motif de la demande : "+r.motif,"","Disponibilité vérifiée dans l'outil de gestion du parking.","","Cordialement,",r.nom];
   return {subject,lines};
 }
-function sendRequest(r,mode){
+
+async function sendRequest(r,mode){
+  if(busy) return; busy=true;
   const {subject,lines}=mailContent(r);
-  // Revérifier juste avant l'envoi
-  if(!checkPeriod(r.du,r.au,data).ok){ toast("Les dernières disponibilités ont changé : relancez la vérification."); return; }
+  try{
+    await commit(l=>{
+      if(!checkPeriod(r.du,r.au,l.requests).ok) throw new Error("FULL");
+      l.requests.push({id:uid(),...r,badge:"Demande envoyée",createdAt:new Date().toISOString()});
+    });
+  }catch(e){
+    busy=false;
+    if(e.message==="FULL"){ toast("Une autre demande vient de remplir le parking sur cette période : relancez la vérification."); $("result").innerHTML=""; }
+    else toast("Demande non enregistrée, rien n'a été envoyé : "+saveErr(e));
+    return;
+  }
+  busy=false;
   if(mode==="mailto"){
     location.href="mailto:"+MAIL_TO+"?subject="+encodeURIComponent(subject)+"&body="+encodeURIComponent(lines.join("\r\n"));
   }else{
@@ -349,11 +446,12 @@ function sendRequest(r,mode){
     a.download="Demande_badge_parking614_"+r.immat.replace(/\W/g,"")+".eml";
     document.body.appendChild(a); a.click(); a.remove();
   }
-  data.push({id:uid(),...r,badge:"Demande envoyée"}); save();
   toast("Demande enregistrée. Finalisez l'envoi dans Outlook.");
-  $("form").reset(); $("result").innerHTML=`<div class="result"><h3>Demande transmise</h3><p>Votre demande est enregistrée et les dates sont réservées en attente de configuration du badge.</p></div>`;
+  $("form").reset();
+  $("result").innerHTML=`<div class="result"><h3>Demande enregistrée</h3><p>Les dates sont réservées dans le parking partagé, en attente de configuration du badge. Envoyez le message Outlook ouvert pour finaliser.</p></div>`;
   $("avail-hint").textContent="";
 }
+
 function b64(s){ return btoa(String.fromCharCode(...new TextEncoder().encode(s))); }
 function encodeMime(s){ return "=?UTF-8?B?"+b64(s)+"?="; }
 
@@ -381,14 +479,6 @@ function renderPark(){
   const occ=occupancy(data), {slots,count}=assignSlots(data);
   const rows=Math.max(CAPACITY,count);
   const ds=[]; for(let i=1;i<=nd;i++){ const d=new Date(y,m,i); ds.push({k:iso(d),i,dow:d.getDay(),n:occ[iso(d)]||0}); }
-  // KPI
-  const tk=occ[todayIso]||0;
-  const avg=Math.round(ds.reduce((a,d)=>a+d.n,0)/nd*10)/10;
-  const peak=Math.max(...ds.map(d=>d.n)), full=ds.filter(d=>d.n>=CAPACITY).length;
-  $("kpis").innerHTML=`<div class="kpi y"><b>${Math.max(CAPACITY-tk,0)} / ${CAPACITY}</b><small>Places libres aujourd'hui</small></div>
-   <div class="kpi"><b>${avg}</b><small>Occupation moyenne du mois</small></div>
-   <div class="kpi"><b>${peak}</b><small>Pic d'occupation du mois</small></div>
-   <div class="kpi ${full?"":"y"}"><b>${full}</b><small>Jour(s) complet(s) ce mois</small></div>`;
   // Table
   const J=["D","L","M","M","J","V","S"];
   let h=`<thead><tr><th class="pl">Place</th>`+ds.map(d=>`<th class="${d.k===todayIso?"today":(d.dow%6===0?"we":"")}" data-day="${d.k}" style="cursor:pointer" title="${fr(d.k)}">${J[d.dow]}<br>${d.i}</th>`).join("")+`</tr></thead><tbody>`;
@@ -397,7 +487,6 @@ function renderPark(){
   for(const r of data){ if(!slots.has(r.id)) continue; const s=slots.get(r.id);
     for(let i=0;i<nd;i++){ const k=ds[i].k; if(k>=r.du&&k<=r.au){ (byDay[s]??={})[k]=r; } } }
   for(let s=0;s<rows;s++){
-    if(s>=CAPACITY && !byDay[s]) continue;
     h+=`<tr><th class="pl">${s<CAPACITY?"Place "+(s+1):"Surcharge"}</th>`;
     for(const d of ds){ const r=byDay[s]?.[d.k];
       const cls=r?("c occ"+(r.motif==="Professionnel"?" pro":"")+(s>=CAPACITY?" over":"")):("c"+(d.dow%6===0?" we":""));
@@ -417,38 +506,66 @@ function dayDetail(k){
    +(list.length?`<ul>`+list.map(r=>`<li>${esc(r.nom)} – ${esc(r.immat)} (${esc(r.modele)}) – agence ${esc(r.agence||"?")} – ${esc(r.motif)}, du ${fr(r.du)} au ${fr(r.au)}</li>`).join("")+`</ul>`:"");
 }
 
+
 /* ---------- Administration ---------- */
-let unlocked=false;
-$("login-btn").onclick=tryLogin; $("code").addEventListener("keydown",e=>{if(e.key==="Enter")tryLogin()});
-function tryLogin(){ if($("code").value===ADMIN_CODE){ unlocked=true; $("code").value=""; renderAdmin(); } else $("code-err").textContent="Code incorrect."; }
-$("logout").onclick=()=>{unlocked=false; renderAdmin();};
+$("login-btn").onclick=tryLogin; $("pwd").addEventListener("keydown",e=>{if(e.key==="Enter")tryLogin()});
+async function tryLogin(){
+  $("code-err").textContent="";
+  if(!loaded){ $("code-err").textContent="Fichier de données inaccessible."; return; }
+  const email=$("mail").value.trim().toLowerCase(), a=db.admins.find(x=>x.email===email);
+  let ok=false;
+  try{ ok=!!a && await hashPw($("pwd").value,a.salt)===a.hash; }catch(e){ $("code-err").textContent="Chiffrement indisponible dans ce navigateur."; return; }
+  if(!ok){ $("code-err").textContent="Identifiants incorrects."; return; }
+  admin=email; $("pwd").value=""; renderAdmin();
+}
+$("logout").onclick=()=>{admin=null; renderAdmin();};
 ["q","fbadge","fmotif","ffuture"].forEach(i=>$(i).addEventListener("input",renderTable));
+function renderAll(){
+  if(!$("tab-parking").hidden) renderPark();
+  if(!$("tab-admin").hidden && $("modal").hidden) renderAdmin();
+}
 function renderAdmin(){
-  $("login").hidden=unlocked; $("adminpanel").hidden=!unlocked;
-  if(!unlocked) return;
+  $("login").hidden=!!admin; $("adminpanel").hidden=!admin;
+  if(!admin) return;
+  $("who").textContent=admin;
   const cur=$("fbadge").value;
   const badges=[...new Set([...BADGES,...data.map(r=>r.badge).filter(Boolean)])];
   $("fbadge").innerHTML=`<option value="">Tous les badges</option>`+badges.map(b=>`<option>${esc(b)}</option>`).join("");
   $("fbadge").value=cur;
   $("e-badge").innerHTML=`<option value="">—</option>`+badges.map(b=>`<option>${esc(b)}</option>`).join("");
-  renderTable();
+  renderKpis(); renderTable(); renderAdmins();
+}
+function renderKpis(){
+  const occ=occupancy(data), n=new Date(), y=n.getFullYear(), m=n.getMonth(), nd=new Date(y,m+1,0).getDate();
+  const ds=[]; for(let i=1;i<=nd;i++) ds.push(occ[iso(new Date(y,m,i))]||0);
+  const tk=occ[todayIso]||0, avg=Math.round(ds.reduce((a,b)=>a+b,0)/nd*10)/10, peak=Math.max(...ds), full=ds.filter(x=>x>=CAPACITY).length;
+  const wait=data.filter(r=>r.badge==="Demande envoyée").length, up=data.filter(r=>r.au>=todayIso).length;
+  $("kpis").innerHTML=`<div class="kpi y"><b>${Math.max(CAPACITY-tk,0)} / ${CAPACITY}</b><small>Places libres aujourd'hui</small></div>
+   <div class="kpi"><b>${avg}</b><small>Occupation moyenne – ${MONTHS[m]}</small></div>
+   <div class="kpi"><b>${peak}</b><small>Pic d'occupation – ${MONTHS[m]}</small></div>
+   <div class="kpi ${full?"":"y"}"><b>${full}</b><small>Jour(s) complet(s) – ${MONTHS[m]}</small></div>
+   <div class="kpi y"><b>${wait}</b><small>Badges à configurer</small></div>
+   <div class="kpi"><b>${up}</b><small>Demandes en cours / à venir</small></div>
+   <div class="kpi"><b>${data.length}</b><small>Demandes au total</small></div>`;
 }
 function renderTable(){
-  if(!unlocked) return;
+  if(!admin) return;
   const q=$("q").value.trim().toLowerCase(), fb=$("fbadge").value, fm=$("fmotif").value, ff=$("ffuture").checked;
   let list=data.filter(r=>(!fb||r.badge===fb)&&(!fm||r.motif===fm)&&(!ff||r.au>=todayIso)
     &&(!q||[r.nom,r.immat,r.agence,r.modele,r.tel].join(" ").toLowerCase().includes(q)));
-  list.sort((a,b)=>b.du.localeCompare(a.du));
+  list=[...list].sort((a,b)=>b.du.localeCompare(a.du));
   $("count").textContent=list.length+" demande(s) affichée(s) sur "+data.length+".";
   $("tbl").innerHTML=`<thead><tr><th>NOM Prénom</th><th>Agence</th><th>Téléphone</th><th>Immat.</th><th>Modèle</th><th>Du</th><th>Au</th><th>Jours</th><th>Motif</th><th>Badge</th><th></th></tr></thead><tbody>`+
    list.map(r=>`<tr><td>${esc(r.nom)}</td><td>${esc(r.agence)}</td><td class="mono">${esc(fmtTel(r.tel))}</td><td>${esc(r.immat)}</td><td>${esc(r.modele)}</td><td>${fr(r.du)}</td><td>${fr(r.au)}</td><td>${nbDays(r)}</td><td>${esc(r.motif)}</td>
    <td>${r.badge?`<span class="tag ${r.badge==="Demande envoyée"?"wait":""}">${esc(r.badge)}</span>`:""}</td>
    <td style="white-space:nowrap"><button class="btn sm sec" data-edit="${r.id}">Éditer</button> <button class="btn sm danger" data-del="${r.id}">Supprimer</button></td></tr>`).join("")+"</tbody>";
 }
-$("tbl").addEventListener("click",ev=>{
+$("tbl").addEventListener("click",async ev=>{
   const e=ev.target.dataset.edit, d=ev.target.dataset.del;
   if(e) openEdit(e);
-  if(d){ const r=data.find(x=>x.id===d); if(r&&confirm("Supprimer la demande de "+r.nom+" ("+fr(r.du)+" → "+fr(r.au)+") ?")){ data=data.filter(x=>x.id!==d); save(); renderTable(); toast("Demande supprimée."); } }
+  if(d){ const r=data.find(x=>x.id===d);
+    if(r&&confirm("Supprimer la demande de "+r.nom+" ("+fr(r.du)+" → "+fr(r.au)+") ?")){
+      try{ await commit(l=>{ l.requests=l.requests.filter(x=>x.id!==d); }); toast("Demande supprimée."); }catch(er){ toast("Suppression impossible : "+saveErr(er)); } } }
 });
 let editId=null;
 const F=["nom","agence","tel","immat","modele","du","au","motif"];
@@ -456,26 +573,53 @@ function openEdit(id){
   editId=id; const r=id?data.find(x=>x.id===id):{nom:"",agence:"",tel:"",immat:"",modele:"",du:"",au:"",motif:"Personnel",badge:"Ok paramétré"};
   $("etitle").textContent=id?"Modifier la demande":"Ajouter une demande";
   F.forEach(k=>$("e-"+k).value=r[k]||""); $("e-badge").value=r.badge||"";
-  $("e-capacity").textContent=""; showErrors({},"e-"); $("modal").hidden=false;
+  $("e-capacity").textContent=""; $("e-capacity").dataset.ack=""; showErrors({},"e-"); $("modal").hidden=false;
 }
 $("add").onclick=()=>openEdit(null);
-$("ecancel").onclick=()=>$("modal").hidden=true;
-$("eform").addEventListener("submit",ev=>{
+$("ecancel").onclick=()=>{$("modal").hidden=true; renderAdmin();};
+$("eform").addEventListener("submit",async ev=>{
   ev.preventDefault();
   const v=readForm("e-"), e=validate(v,{future:false}); showErrors(e,"e-");
   if(Object.keys(e).length) return;
-  const r=clean(v); const chk=checkPeriod(r.du,r.au,data,editId);
+  const r=clean(v); r.badge=$("e-badge").value;
+  const chk=checkPeriod(r.du,r.au,data,editId);
   if(!chk.ok && $("e-capacity").dataset.ack!==r.du+r.au){
     $("e-capacity").textContent="Parking complet sur "+chk.blocked.length+" jour(s) de cette période. Cliquez à nouveau sur Enregistrer pour forcer.";
     $("e-capacity").dataset.ack=r.du+r.au; return;
   }
-  r.badge=$("e-badge").value;
-  if(editId) Object.assign(data.find(x=>x.id===editId),r); else data.push({id:uid(),...r});
-  save(); $("modal").hidden=true; renderAdmin(); toast("Enregistré.");
+  try{
+    await commit(l=>{ if(editId){ const t=l.requests.find(x=>x.id===editId); if(!t) throw new Error("demande supprimée entre-temps"); Object.assign(t,r); } else l.requests.push({id:uid(),...r}); });
+    $("modal").hidden=true; renderAdmin(); toast("Enregistré.");
+  }catch(er){ toast("Enregistrement impossible : "+saveErr(er)); }
+});
+/* comptes administrateurs */
+function renderAdmins(){
+  $("admtbl").innerHTML=`<thead><tr><th>E-mail</th><th>Créé le</th><th></th></tr></thead><tbody>`+db.admins.map(a=>`<tr><td>${esc(a.email)}${a.email===admin?" (vous)":""}</td><td>${fr(a.created||"")}</td>
+   <td style="white-space:nowrap"><button class="btn sm sec" data-pw="${esc(a.email)}">Nouveau mot de passe</button> ${a.email===admin?"":`<button class="btn sm danger" data-rm="${esc(a.email)}">Supprimer</button>`}</td></tr>`).join("")+"</tbody>";
+}
+$("admtbl").addEventListener("click",async ev=>{
+  const pw=ev.target.dataset.pw, rm=ev.target.dataset.rm;
+  try{
+    if(pw){ const p=prompt("Nouveau mot de passe pour "+pw+" (8 caractères minimum) :"); if(p===null) return;
+      if(p.length<8){ toast("Mot de passe trop court."); return; }
+      const na=await makeAdmin(pw,p); await commit(l=>{ const i=l.admins.findIndex(x=>x.email===pw); if(i<0) throw new Error("compte introuvable"); na.created=l.admins[i].created; l.admins[i]=na; }); toast("Mot de passe modifié."); }
+    if(rm && confirm("Supprimer le compte administrateur "+rm+" ?")){ await commit(l=>{ l.admins=l.admins.filter(x=>x.email!==rm); }); toast("Compte supprimé."); }
+  }catch(er){ toast("Opération impossible : "+saveErr(er)); }
+});
+$("admform").addEventListener("submit",async ev=>{
+  ev.preventDefault();
+  const email=$("a-mail").value.trim().toLowerCase(), p=$("a-pwd").value, p2=$("a-pwd2").value, er=$("a-err");
+  if(!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) { er.textContent="E-mail invalide."; return; }
+  if(p.length<8){ er.textContent="Mot de passe : 8 caractères minimum."; return; }
+  if(p!==p2){ er.textContent="Les mots de passe ne correspondent pas."; return; }
+  if(db.admins.some(a=>a.email===email)){ er.textContent="Ce compte existe déjà."; return; }
+  er.textContent="";
+  try{ const na=await makeAdmin(email,p); await commit(l=>{ if(l.admins.some(a=>a.email===email)) throw new Error("compte déjà créé"); l.admins.push(na); });
+    $("admform").reset(); toast("Administrateur créé."); }catch(x){ er.textContent="Création impossible : "+saveErr(x); }
 });
 /* exports */
 function download(name,content,type){ const a=document.createElement("a"); a.href=URL.createObjectURL(new Blob([content],{type})); a.download=name; document.body.appendChild(a); a.click(); a.remove(); }
-$("exp-json").onclick=()=>download("parking614_sauvegarde_"+todayIso+".json",JSON.stringify(data),"application/json");
+$("exp-json").onclick=()=>download("parking614_sauvegarde_"+todayIso+".json",JSON.stringify({requests:data}),"application/json");
 $("exp-csv").onclick=()=>{
   const q=s=>'"'+String(s??"").replace(/"/g,'""')+'"';
   const rows=[["NOM Prénom","Agence","Téléphone","Immatriculation","Modèle du Véhicule","Du","Au","Motif de la demande","Badge ?","Nb jours"]]
@@ -484,14 +628,19 @@ $("exp-csv").onclick=()=>{
 };
 $("imp-json").onclick=()=>$("file").click();
 $("file").onchange=()=>{ const f=$("file").files[0]; if(!f) return; const rd=new FileReader();
-  rd.onload=()=>{ try{ const j=JSON.parse(rd.result); if(!Array.isArray(j)||!j.every(r=>r&&r.du&&r.au&&"nom" in r)) throw 0;
-    if(confirm("Remplacer les "+data.length+" demandes actuelles par les "+j.length+" du fichier ?")){ data=j.map(r=>({id:r.id||uid(),...r})); save(); renderAdmin(); toast("Sauvegarde restaurée."); } }
-    catch(e){ toast("Fichier non valide."); } $("file").value=""; };
+  rd.onload=async()=>{ try{ let j=JSON.parse(rd.result); if(!Array.isArray(j)) j=j.requests;
+      if(!Array.isArray(j)||!j.every(r=>r&&r.du&&r.au&&"nom" in r)) throw new Error("fichier non valide");
+      if(confirm("Remplacer les "+data.length+" demandes actuelles par les "+j.length+" du fichier ?")){ await commit(l=>{ l.requests=j.map(r=>({id:r.id||uid(),...r})); }); toast("Sauvegarde restaurée."); } }
+    catch(e){ toast("Restauration impossible : "+saveErr(e)); } $("file").value=""; };
   rd.readAsText(f); };
+
 
 /* utilitaires */
 function esc(s){ return String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c])); }
 let tt; function toast(m){ const t=$("toast"); t.textContent=m; t.hidden=false; clearTimeout(tt); tt=setTimeout(()=>t.hidden=true,4500); }
+
+
+refresh(); setInterval(()=>{ if(!busy && $("modal").hidden) refresh(); },60000);
 </script>
 </body>
 </html>
