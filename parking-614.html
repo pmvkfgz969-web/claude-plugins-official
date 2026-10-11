@@ -481,11 +481,12 @@ $("form").addEventListener("submit",async ev=>{
   if(res.ok){
     $("result").innerHTML=`<div class="result"><h3>Places disponibles sur toute la période</h3>
       <p>Minimum de <b>${res.minFree} place${res.minFree>1?"s":""} libre${res.minFree>1?"s":""}</b> sur ${CAPACITY} pendant la période demandée.</p>${legend}
-      <p><button class="btn" id="send">Envoyer ma demande de configuration de badge</button></p>
-      <p class="hint">Au clic, la demande est enregistrée dans le fichier partagé, puis un message Outlook préparé à l'attention de ${MAIL_TO} est téléchargé : ouvrez-le et cliquez sur Envoyer.
-      <a href="#" id="mailto">Sinon, ouvrir via la messagerie par défaut.</a></p></div>`;
-    $("send").onclick=()=>sendRequest(req,"eml");
-    $("mailto").onclick=ev=>{ev.preventDefault(); sendRequest(req,"mailto");};
+      <p><a class="btn" id="send" href="${esc(mailHref(req))}">Envoyer ma demande de configuration de badge</a></p>
+      <p class="hint">Un brouillon de message à l'attention de ${MAIL_TO} s'ouvre dans votre messagerie (Outlook) avec tous les éléments. <b>Rien n'est envoyé automatiquement</b> : relisez-le puis cliquez vous-même sur Envoyer.</p>
+      <p class="hint">Le brouillon ne s'ouvre pas ? <a href="#" id="eml">Télécharger le message (.eml) pour l'ouvrir dans Outlook</a> · <a href="#" id="copy">Copier le texte du message</a></p></div>`;
+    $("send").onclick=()=>{ recordRequest(req); };
+    $("eml").onclick=ev=>{ev.preventDefault(); downloadEml(req);};
+    $("copy").onclick=ev=>{ev.preventDefault(); copyMail(req);};
   }else{
     const b=res.blocked, first=b[0].k, last=b[b.length-1].k;
     $("result").innerHTML=`<div class="result ko"><h3>Demande déclinée : parking complet</h3>
@@ -503,9 +504,27 @@ function mailContent(r){
   return {subject,lines};
 }
 
-async function sendRequest(r,mode){
-  if(busy) return; busy=true;
+const mailHref = r => { const {subject,lines}=mailContent(r); return "mailto:"+MAIL_TO+"?subject="+encodeURIComponent(subject)+"&body="+encodeURIComponent(lines.join("\r\n")); };
+function downloadEml(r){
   const {subject,lines}=mailContent(r);
+  const eml=["To: "+MAIL_TO,"Subject: "+encodeMime(subject),"X-Unsent: 1","MIME-Version: 1.0",
+    'Content-Type: text/plain; charset="utf-8"',"Content-Transfer-Encoding: base64","",
+    b64(lines.join("\r\n")).replace(/(.{76})/g,"$1\r\n")].join("\r\n");
+  const a=document.createElement("a");
+  a.href=URL.createObjectURL(new Blob([eml],{type:"message/rfc822"}));
+  a.download="Demande_badge_parking614_"+r.immat.replace(/\W/g,"")+".eml";
+  document.body.appendChild(a); a.click(); a.remove();
+}
+async function copyMail(r){
+  const {subject,lines}=mailContent(r), txt="À : "+MAIL_TO+"\nObjet : "+subject+"\n\n"+lines.join("\n");
+  try{ await navigator.clipboard.writeText(txt); toast("Message copié : collez-le dans un nouveau mail Outlook."); }
+  catch(e){ const ta=document.createElement("textarea"); ta.value=txt; document.body.appendChild(ta); ta.select(); try{document.execCommand("copy"); toast("Message copié : collez-le dans un nouveau mail Outlook.");}catch(x){toast("Copie impossible.");} ta.remove(); }
+}
+/* Le brouillon Outlook s'ouvre au clic (lien mailto) ; l'enregistrement dans le fichier partagé se fait en parallèle. */
+let recorded=null;
+async function recordRequest(r){
+  const key=r.immat+r.du+r.au;
+  if(busy||recorded===key) return; busy=true;
   try{
     await commit(l=>{
       if(!checkPeriod(r.du,r.au,l.requests).ok) throw new Error("FULL");
@@ -513,29 +532,24 @@ async function sendRequest(r,mode){
     });
   }catch(e){
     busy=false;
-    if(e.message==="FULL"){ toast("Une autre demande vient de remplir le parking sur cette période : relancez la vérification."); $("result").innerHTML=""; }
-    else toast("Demande non enregistrée, rien n'a été envoyé : "+saveErr(e));
+    const full=e.message==="FULL";
+    $("result").innerHTML=`<div class="result ko"><h3>${full?"Parking complet entre-temps":"Demande non enregistrée dans le fichier partagé"}</h3>
+      <p>${full?"Une autre demande vient de remplir le parking sur cette période. <b>N'envoyez pas le brouillon de message ouvert</b> et relancez la vérification.":"Raison : "+esc(saveErr(e))+". Le brouillon de message a pu s'ouvrir, mais les dates ne sont pas réservées tant que l'enregistrement n'a pas abouti."}</p>
+      ${full?"":`<p><button class="btn" id="retry">Réessayer l'enregistrement</button></p>`}</div>`;
+    if(!full) $("retry").onclick=()=>recordRequest(r);
     return;
   }
-  busy=false;
-  if(mode==="mailto"){
-    location.href="mailto:"+MAIL_TO+"?subject="+encodeURIComponent(subject)+"&body="+encodeURIComponent(lines.join("\r\n"));
-  }else{
-    const eml=["To: "+MAIL_TO,"Subject: "+encodeMime(subject),"X-Unsent: 1","MIME-Version: 1.0",
-      'Content-Type: text/plain; charset="utf-8"',"Content-Transfer-Encoding: base64","",
-      b64(lines.join("\r\n")).replace(/(.{76})/g,"$1\r\n")].join("\r\n");
-    const a=document.createElement("a");
-    a.href=URL.createObjectURL(new Blob([eml],{type:"message/rfc822"}));
-    a.download="Demande_badge_parking614_"+r.immat.replace(/\W/g,"")+".eml";
-    document.body.appendChild(a); a.click(); a.remove();
-  }
-  toast("Demande enregistrée. Finalisez l'envoi dans Outlook.");
+  busy=false; recorded=key;
+  toast("Demande enregistrée. Relisez et envoyez le brouillon dans Outlook.");
   $("form").reset();
-  $("result").innerHTML=`<div class="result"><h3>Demande validée et enregistrée</h3><p>Les dates sont réservées dans le parking partagé, en attente de configuration du badge. Envoyez le message Outlook ouvert pour finaliser.</p>
+  $("result").innerHTML=`<div class="result"><h3>Demande validée et enregistrée</h3><p>Les dates sont réservées dans le parking partagé, en attente de configuration du badge. Finalisez en envoyant le brouillon de message ouvert dans Outlook.</p>
     <p><button class="btn" id="print">Imprimer / enregistrer la fiche en PDF (A4)</button></p>
-    <p class="hint">À poser sur le tableau de bord du véhicule pendant le stationnement. Dans la fenêtre d'impression, choisissez « Enregistrer au format PDF » : le fichier se nomme « Stationnement Validé ${esc(r.nom)} ${esc(r.immat)} ».</p></div>`;
+    <p class="hint">À poser sur le tableau de bord du véhicule pendant le stationnement. Dans la fenêtre d'impression, choisissez « Enregistrer au format PDF » : le fichier se nomme « Stationnement Validé ${esc(r.nom)} ${esc(r.immat)} ».</p>
+    <p class="hint"><a href="${esc(mailHref(r))}">Rouvrir le brouillon</a> · <a href="#" id="eml2">Télécharger en .eml</a> · <a href="#" id="copy2">Copier le texte</a></p></div>`;
   const saved=data.slice().reverse().find(x=>x.immat===r.immat&&x.du===r.du&&x.au===r.au)||r;
   $("print").onclick=()=>printSheet(saved);
+  $("eml2").onclick=ev=>{ev.preventDefault(); downloadEml(r);};
+  $("copy2").onclick=ev=>{ev.preventDefault(); copyMail(r);};
   $("avail-hint").textContent="";
 }
 
