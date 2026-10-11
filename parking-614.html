@@ -50,11 +50,15 @@ section[hidden]{display:none}
 @media(max-width:860px){.grid{grid-template-columns:1fr}main{padding:16px}}
 .card{border:1px solid var(--blue-25);border-top:4px solid var(--blue);border-radius:4px;padding:18px}
 label{display:block;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--head);margin:12px 0 4px}
-input,select{background:var(--surface);color:var(--ink);width:100%;padding:9px 10px;border:1px solid var(--silver);border-radius:3px;font:14px var(--font)}
-input:focus,select:focus,button:focus-visible{outline:2px solid var(--yellow);outline-offset:1px}
-input.invalid,select.invalid{border-color:var(--ko);background:var(--ko-bg)}
+input,select,textarea{background:var(--surface);color:var(--ink);width:100%;padding:9px 10px;border:1px solid var(--silver);border-radius:3px;font:14px var(--font)}
+input:focus,select:focus,textarea:focus,button:focus-visible{outline:2px solid var(--yellow);outline-offset:1px}
+input.invalid,select.invalid,textarea.invalid{border-color:var(--ko);background:var(--ko-bg)}
 .err{color:var(--ko);font-size:12px;min-height:16px;margin-top:2px}
 .hint{font-size:12px;color:var(--muted)}
+textarea{min-height:84px;resize:vertical;font:14px var(--font)}
+.who{margin:0 0 4px;padding:8px 12px;background:var(--blue-10);border-left:6px solid var(--yellow)}
+.cnt{font-size:12px;color:var(--muted)}.cnt.ok{color:var(--head);font-weight:700}.cnt.bad{color:var(--ko)}
+td.cm{max-width:240px;white-space:normal;font-size:12px}
 .row2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
 .btn{background:var(--blue);color:#fff;border:0;border-bottom:3px solid var(--yellow);padding:11px 18px;font:700 14px var(--font);cursor:pointer;border-radius:2px}
 .btn:hover{background:var(--blue-75)}
@@ -207,13 +211,14 @@ body:not([data-auth=admin]) button[data-tab=admin]{display:none}
  <div class="grid">
   <form class="card" id="form" novalidate>
     <h2>Votre demande</h2>
-    <label for="demandeur">Nom du demandeur</label><select id="demandeur"><option value="">— Choisir —</option></select>
-    <div class="err" data-for="demandeur"></div>
-    <label for="nom">NOM Prénom</label><input id="nom" autocomplete="name">
-    <div class="err" data-for="nom"></div>
+    <p class="who">Demandeur : <b id="who-name">—</b> <span class="hint">(déterminé par votre connexion)</span></p>
+    <div class="row2">
+      <div><label for="nom">Nom</label><input id="nom" autocomplete="family-name" placeholder="DUPONT"><div class="err" data-for="nom"></div></div>
+      <div><label for="prenom">Prénom</label><input id="prenom" autocomplete="given-name" placeholder="Jean"><div class="err" data-for="prenom"></div></div>
+    </div>
     <div class="row2">
       <div><label for="agence">Code agence</label><input id="agence" maxlength="3" placeholder="3 chiffres ou EXT"><div class="err" data-for="agence"></div></div>
-      <div><label for="tel">Téléphone</label><input id="tel" inputmode="tel" placeholder="10 chiffres"><div class="err" data-for="tel"></div></div>
+      <div><label for="tel">Téléphone</label><input id="tel" inputmode="tel" placeholder="10 chiffres"><div class="cnt" id="tel-cnt"></div><div class="err" data-for="tel"></div></div>
     </div>
     <div class="row2">
       <div><label for="immat">Immatriculation</label><input id="immat" placeholder="AB-123-CD"><div class="err" data-for="immat"></div></div>
@@ -228,6 +233,9 @@ body:not([data-auth=admin]) button[data-tab=admin]{display:none}
     <label for="motif">Motif de la demande</label>
     <select id="motif"><option value="">— Choisir —</option><option>Personnel</option><option>Professionnel</option></select>
     <div class="err" data-for="motif"></div>
+    <label for="commentaires">Commentaires (facultatif)</label>
+    <textarea id="commentaires" maxlength="500" placeholder="Texte libre : précisions utiles pour la demande de badge…"></textarea>
+    <div class="cnt" id="com-cnt">0/500</div>
     <p style="margin-top:14px"><button class="btn" type="submit">Vérifier la disponibilité</button></p>
   </form>
   <div>
@@ -315,7 +323,10 @@ body:not([data-auth=admin]) button[data-tab=admin]{display:none}
 <div class="modal" id="modal" hidden><form class="card" id="eform" novalidate>
   <h2 id="etitle">Modifier la demande</h2>
   <label for="e-demandeur">Nom du demandeur</label><select id="e-demandeur"><option value="">— Choisir —</option></select><div class="err" data-for="e-demandeur"></div>
-  <label for="e-nom">NOM Prénom</label><input id="e-nom"><div class="err" data-for="e-nom"></div>
+  <div class="row2">
+    <div><label for="e-nom">Nom</label><input id="e-nom"><div class="err" data-for="e-nom"></div></div>
+    <div><label for="e-prenom">Prénom</label><input id="e-prenom"><div class="err" data-for="e-prenom"></div></div>
+  </div>
   <div class="row2">
     <div><label for="e-agence">Code agence</label><input id="e-agence" maxlength="3"><div class="err" data-for="e-agence"></div></div>
     <div><label for="e-tel">Téléphone</label><input id="e-tel"><div class="err" data-for="e-tel"></div></div>
@@ -332,6 +343,7 @@ body:not([data-auth=admin]) button[data-tab=admin]{display:none}
     <div><label for="e-motif">Motif</label><select id="e-motif"><option>Personnel</option><option>Professionnel</option></select></div>
     <div><label for="e-badge">Badge</label><select id="e-badge"></select></div>
   </div>
+  <label for="e-commentaires">Commentaires</label><textarea id="e-commentaires" maxlength="500"></textarea>
   <div id="e-capacity" class="err"></div>
   <p style="margin-top:14px;display:flex;gap:10px"><button class="btn" type="submit">Enregistrer</button><button type="button" class="btn sec" id="ecancel">Annuler</button></p>
 </form></div>
@@ -497,20 +509,25 @@ function assignSlots(list){
 
 /* ---------- Validation ---------- */
 function normTel(v){ return v.replace(/[\s.\-]/g,""); }
-function validate(v,{future=true}={}){
-  const e={};
-  if(future && !v.demandeur) e.demandeur="Choisissez le demandeur.";
-  if(!v.nom.trim()) e.nom="Nom et prénom obligatoires.";
-  const ag=v.agence.trim().toUpperCase();
-  if(!/^(\d{3}|EXT)$/.test(ag)) e.agence="3 chiffres ou EXT.";
-  if(!/^\d{10}$/.test(normTel(v.tel))) e.tel="10 chiffres exactement.";
-  if(!v.immat.trim()) e.immat="Immatriculation obligatoire.";
-  if(!v.modele.trim()) e.modele="Modèle obligatoire.";
+const RE_NOM=/^[A-ZÀ-ÖØ-ÞŒ]+([ '\-][A-ZÀ-ÖØ-ÞŒ]+)*$/;
+const RE_PRENOM=/^[A-Za-zÀ-ÖØ-öø-ÿŒœ]+([ '\-][A-Za-zÀ-ÖØ-öø-ÿŒœ]+)*$/;
+function validate(v,{future=true,orig=null}={}){
+  const e={}, tel=normTel(v.tel||""), imm=(v.immat||"").replace(/[\s\-]/g,"").toUpperCase();
+  if(future && !v.demandeur) e.demandeur="Demandeur introuvable : reconnectez-vous.";
+  const nom=(v.nom||"").trim().replace(/\s+/g," ").toUpperCase(), pre=(v.prenom||"").trim().replace(/\s+/g," ");
+  if(!nom) e.nom="Nom obligatoire."; else if(nom.length<2||!RE_NOM.test(nom)) e.nom="Nom invalide : lettres uniquement (espace, tiret et apostrophe admis).";
+  if(!pre) e.prenom="Prénom obligatoire."; else if(pre.length<2||!RE_PRENOM.test(pre)) e.prenom="Prénom invalide : lettres uniquement (espace, tiret et apostrophe admis).";
+  if(!/^(\d{3}|EXT)$/.test((v.agence||"").trim().toUpperCase())) e.agence="Code agence : 3 chiffres ou EXT.";
+  if(!/^\d{10}$/.test(tel)) e.tel=/\D/.test(tel)?"Téléphone : chiffres uniquement.":"Téléphone : 10 chiffres exactement ("+tel.length+" saisi"+(tel.length>1?"s":"")+").";
+  if(!imm) e.immat="Immatriculation obligatoire.";
+  else if(!/^[A-Z0-9]{5,9}$/.test(imm)||!/\d/.test(imm)||!/[A-Z]/.test(imm)) e.immat="Immatriculation invalide (ex. AB-123-CD).";
+  if((v.modele||"").trim().length<2) e.modele="Modèle du véhicule obligatoire.";
   if(!v.du) e.du="Date de début obligatoire.";
   else if(future && v.du<todayIso) e.du="La date ne peut pas être passée.";
   if(!v.au) e.au="Date de fin obligatoire.";
   else if(v.du && v.au<v.du) e.au="La fin doit suivre le début.";
   if(!v.motif) e.motif="Motif obligatoire.";
+  if(orig) for(const k of ["nom","prenom","agence","tel","immat","modele","du","au"]) if(e[k] && String(orig[k]||"")===String(v[k]||"")) delete e[k];   // champs hérités non modifiés
   return e;
 }
 function showErrors(e,prefix=""){
@@ -523,8 +540,19 @@ function showErrors(e,prefix=""){
   });
 }
 const $ = id=>document.getElementById(id);
-function readForm(p=""){ const g=k=>$(p+k).value; return {demandeur:g("demandeur"),nom:g("nom"),agence:g("agence"),tel:g("tel"),immat:g("immat"),modele:g("modele"),du:g("du"),au:g("au"),motif:g("motif")}; }
-function clean(v){ return {demandeur:v.demandeur||"",nom:v.nom.trim(),agence:v.agence.trim().toUpperCase(),tel:normTel(v.tel),immat:v.immat.trim().toUpperCase(),modele:v.modele.trim(),du:v.du,au:v.au,motif:v.motif}; }
+function readForm(p=""){ const g=k=>$(p+k).value; return {demandeur:p?g("demandeur"):(session?session.nom:""),nom:g("nom"),prenom:g("prenom"),agence:g("agence"),tel:g("tel"),immat:g("immat"),modele:g("modele"),du:g("du"),au:g("au"),motif:g("motif"),commentaires:g("commentaires")}; }
+function clean(v){ return {demandeur:v.demandeur||"",nom:v.nom.trim().replace(/\s+/g," ").toUpperCase(),prenom:v.prenom.trim().replace(/\s+/g," "),agence:v.agence.trim().toUpperCase(),tel:normTel(v.tel),immat:v.immat.trim().toUpperCase(),modele:v.modele.trim(),du:v.du,au:v.au,motif:v.motif,commentaires:(v.commentaires||"").trim()}; }
+/* Nom / prénom : les anciennes demandes ont « NOM Prénom » dans un seul champ → découpage à l'affichage (données non modifiées) */
+function splitName(s){
+  const w=(s||"").trim().split(/\s+/).filter(Boolean);
+  if(w.length<2) return {nom:(s||"").trim().toUpperCase(),prenom:""};
+  const up=w.map(x=>x.length>1&&x===x.toUpperCase()&&x!==x.toLowerCase());
+  const n=up.filter(Boolean).length;
+  if(n===0||n===w.length) return {nom:w[0].toUpperCase(),prenom:w.slice(1).join(" ")};
+  return {nom:w.filter((x,i)=>up[i]).join(" "),prenom:w.filter((x,i)=>!up[i]).join(" ")};
+}
+const names=r=>r.prenom?{nom:r.nom,prenom:r.prenom}:splitName(r.nom);
+const fullName=r=>{ const n=names(r); return (n.nom+" "+n.prenom).trim(); };
 const fmtTel = t => /^\d{10}$/.test(t)? t.replace(/(\d{2})(?=\d)/g,"$1 ") : (t||"");
 
 /* ---------- Connexion, session, onglets ---------- */
@@ -540,6 +568,7 @@ function showTab(t){
 function applyAuth(){
   document.body.dataset.auth = !session?"out":session.role==="admin"?"admin":"user";
   $("uname").textContent = session?session.nom:"";
+  $("who-name").textContent = session?session.nom:"—";
   if(!session) showTab("login");
   else if(currentTab==="login"||(currentTab==="admin"&&session.role!=="admin")) showTab("demande");
   fillDemandeurs();
@@ -583,11 +612,11 @@ $("lost").onclick=ev=>{
 /* liste déroulante des demandeurs = utilisateurs déclarés dans Administration */
 function fillDemandeurs(){
   const names=[...new Set(db.users.map(u=>u.nom))].sort((a,b)=>a.localeCompare(b,"fr"));
-  for(const id of ["demandeur","e-demandeur"]){
+  for(const id of ["e-demandeur"]){
     if(id==="e-demandeur" && !$("modal").hidden) continue;
     const sel=$(id), cur=sel.value;
     sel.innerHTML=`<option value="">— Choisir —</option>`+names.map(n=>`<option>${esc(n)}</option>`).join("");
-    const want=cur||(id==="demandeur"&&session?session.nom:"");
+    const want=cur;
     if(want&&names.includes(want)) sel.value=want;
   }
 }
@@ -631,11 +660,12 @@ $("form").addEventListener("submit",async ev=>{
 });
 
 function mailContent(r){
-  const subject=`Demande de configuration de badge parking 614 – ${r.nom} – du ${fr(r.du)} au ${fr(r.au)}`;
+  const n=names(r), who=r.demandeur||fullName(r);
+  const subject=`Demande de configuration de badge parking 614 – ${fullName(r)} – du ${fr(r.du)} au ${fr(r.au)}`;
   const lines=["Bonjour,","","Merci de configurer un badge pour le stationnement 614 :","",
-   "Demandeur : "+(r.demandeur||"—"),"NOM Prénom : "+r.nom,"Agence : "+r.agence,"Téléphone : "+fmtTel(r.tel),"Immatriculation : "+r.immat,
+   "Demandeur : "+who,"Nom : "+n.nom,"Prénom : "+n.prenom,"Agence : "+r.agence,"Téléphone : "+fmtTel(r.tel),"Immatriculation : "+r.immat,
    "Modèle du véhicule : "+r.modele,"Du : "+fr(r.du),"Au : "+fr(r.au),"Nombre de jours : "+nbDays(r),
-   "Motif de la demande : "+r.motif,"","Disponibilité vérifiée dans l'outil de gestion du parking.","","Cordialement,",r.nom];
+   "Motif de la demande : "+r.motif,"Commentaires : "+(r.commentaires||"—"),"","Disponibilité vérifiée dans l'outil de gestion du parking.","","Cordialement,",who];
   return {subject,lines};
 }
 
@@ -679,7 +709,7 @@ async function recordRequest(r){
   $("form").reset();
   $("result").innerHTML=`<div class="result"><h3>Demande validée et enregistrée</h3><p>Les dates sont réservées dans le parking partagé, en attente de configuration du badge. Finalisez en envoyant le brouillon de message ouvert dans Outlook.</p>
     <p><button class="btn" id="print">Imprimer / enregistrer la fiche en PDF (A4)</button></p>
-    <p class="hint">À poser sur le tableau de bord du véhicule pendant le stationnement. Dans la fenêtre d'impression, choisissez « Enregistrer au format PDF » : le fichier se nomme « Stationnement Validé ${esc(r.nom)} ${esc(r.immat)} ».</p>
+    <p class="hint">À poser sur le tableau de bord du véhicule pendant le stationnement. Dans la fenêtre d'impression, choisissez « Enregistrer au format PDF » : le fichier se nomme « Stationnement Validé ${esc(fullName(r))} ${esc(r.immat)} ».</p>
     <p class="hint"><a href="${esc(mailHref(r))}">Rouvrir le brouillon</a> · <a href="#" id="eml2">Télécharger en .eml</a> · <a href="#" id="copy2">Copier le texte</a></p></div>`;
   const saved=data.slice().reverse().find(x=>x.immat===r.immat&&x.du===r.du&&x.au===r.au)||r;
   $("print").onclick=()=>printSheet(saved);
@@ -726,7 +756,7 @@ function renderPark(){
     h+=`<tr><th class="pl">${s<CAPACITY?"Place "+(s+1):"Surcharge"}</th>`;
     for(const d of ds){ const r=byDay[s]?.[d.k];
       const cls=r?("c occ"+(r.motif==="Professionnel"?" pro":"")+(s>=CAPACITY?" over":"")):("c"+(d.dow%6===0?" we":""));
-      h+=r?`<td class="${cls}" data-id="${r.id}" data-day="${d.k}" title="${esc(r.nom)} – ${esc(r.immat)}">${esc(r.immat.slice(0,5))}</td>`:`<td class="${cls}"></td>`;
+      h+=r?`<td class="${cls}" data-id="${r.id}" data-day="${d.k}" title="${esc(fullName(r))} – ${esc(r.immat)}">${esc(r.immat.slice(0,5))}</td>`:`<td class="${cls}"></td>`;
     }
     h+="</tr>";
   }
@@ -739,7 +769,7 @@ $("park").addEventListener("click",ev=>{
 function dayDetail(k){
   const list=data.filter(r=>k>=r.du&&k<=r.au);
   $("daydetail").innerHTML=`<b>${fr(k)}</b> – ${list.length} véhicule${list.length>1?"s":""} sur ${CAPACITY} places, ${Math.max(CAPACITY-list.length,0)} libre${CAPACITY-list.length>1?"s":""}.`
-   +(list.length?`<ul>`+list.map(r=>`<li>${esc(r.nom)} – ${esc(r.immat)} (${esc(r.modele)}) – agence ${esc(r.agence||"?")} – ${esc(r.motif)}, du ${fr(r.du)} au ${fr(r.au)} – demandeur : ${esc(r.demandeur||"—")}</li>`).join("")+`</ul>`:"");
+   +(list.length?`<ul>`+list.map(r=>`<li>${esc(fullName(r))} – ${esc(r.immat)} (${esc(r.modele)}) – agence ${esc(r.agence||"?")} – ${esc(r.motif)}, du ${fr(r.du)} au ${fr(r.au)} – demandeur : ${esc(r.demandeur||"—")}</li>`).join("")+`</ul>`:"");
 }
 
 
@@ -804,12 +834,13 @@ function renderTable(){
   const td=tile?tileDef(tile):null;
   $("tilebar").innerHTML = td?`<span class="chip">Filtre : ${esc(td.label)} <button type="button" class="btn sm sec" id="tile-off">Retirer le filtre</button></span>`:"";
   let list=data.filter(r=>(!td||td.fn(r))&&(!fb||r.badge===fb)&&(!fm||r.motif===fm)&&(!ff||r.au>=todayIso)
-    &&(!q||[r.nom,r.immat,r.agence,r.modele,r.tel,r.demandeur].join(" ").toLowerCase().includes(q)));
+    &&(!q||[fullName(r),r.immat,r.agence,r.modele,r.tel,r.demandeur,r.commentaires].join(" ").toLowerCase().includes(q)));
   list=[...list].sort((a,b)=>b.du.localeCompare(a.du));
   $("count").textContent=list.length+" demande(s) affichée(s) sur "+data.length+".";
-  $("tbl").innerHTML=`<thead><tr><th>Demandeur</th><th>NOM Prénom</th><th>Agence</th><th>Téléphone</th><th>Immat.</th><th>Modèle</th><th>Du</th><th>Au</th><th>Jours</th><th>Motif</th><th>Badge</th><th></th></tr></thead><tbody>`+
-   list.map(r=>`<tr><td>${esc(r.demandeur||"—")}</td><td>${esc(r.nom)}</td><td>${esc(r.agence)}</td><td class="mono">${esc(fmtTel(r.tel))}</td><td>${esc(r.immat)}</td><td>${esc(r.modele)}</td><td>${fr(r.du)}</td><td>${fr(r.au)}</td><td>${nbDays(r)}</td><td>${esc(r.motif)}</td>
+  $("tbl").innerHTML=`<thead><tr><th>Demandeur</th><th>Nom</th><th>Prénom</th><th>Agence</th><th>Téléphone</th><th>Immat.</th><th>Modèle</th><th>Du</th><th>Au</th><th>Jours</th><th>Motif</th><th>Badge</th><th>Commentaires</th><th></th></tr></thead><tbody>`+
+   list.map(r=>`<tr><td>${esc(r.demandeur||"—")}</td><td>${esc(names(r).nom)}</td><td>${esc(names(r).prenom)}</td><td>${esc(r.agence)}</td><td class="mono">${esc(fmtTel(r.tel))}</td><td>${esc(r.immat)}</td><td>${esc(r.modele)}</td><td>${fr(r.du)}</td><td>${fr(r.au)}</td><td>${nbDays(r)}</td><td>${esc(r.motif)}</td>
    <td>${r.badge?`<span class="tag ${r.badge==="Demande envoyée"?"wait":""}">${esc(r.badge)}</span>`:""}</td>
+   <td class="cm" title="${esc(r.commentaires||"")}">${esc(r.commentaires||"")}</td>
    <td style="white-space:nowrap"><button class="btn sm sec" data-edit="${r.id}">Éditer</button> <button class="btn sm sec" data-print="${r.id}">Fiche PDF</button> <button class="btn sm danger" data-del="${r.id}">Supprimer</button></td></tr>`).join("")+"</tbody>";
 }
 $("tbl").addEventListener("click",async ev=>{
@@ -817,24 +848,25 @@ $("tbl").addEventListener("click",async ev=>{
   if(e) openEdit(e);
   if(pr){ const r=data.find(x=>x.id===pr); if(r) printSheet(r); }
   if(d){ const r=data.find(x=>x.id===d);
-    if(r&&confirm("Supprimer la demande de "+r.nom+" ("+fr(r.du)+" → "+fr(r.au)+") ?")){
+    if(r&&confirm("Supprimer la demande de "+fullName(r)+" ("+fr(r.du)+" → "+fr(r.au)+") ?")){
       try{ await commit(l=>{ l.requests=l.requests.filter(x=>x.id!==d); }); toast("Demande supprimée."); }catch(er){ toast("Suppression impossible : "+saveErr(er)); } } }
 });
 let editId=null;
-const F=["demandeur","nom","agence","tel","immat","modele","du","au","motif"];
+const F=["demandeur","nom","prenom","agence","tel","immat","modele","du","au","motif","commentaires"];
 function openEdit(id){
   editId=id; const r=id?data.find(x=>x.id===id):{demandeur:session?session.nom:"",nom:"",agence:"",tel:"",immat:"",modele:"",du:"",au:"",motif:"Personnel",badge:"Ok paramétré"};
   fillDemandeurs();
   if(r.demandeur&&![...$("e-demandeur").options].some(o=>o.value===r.demandeur)){ const o=document.createElement("option"); o.textContent=r.demandeur; $("e-demandeur").appendChild(o); }
   $("etitle").textContent=id?"Modifier la demande":"Ajouter une demande";
-  F.forEach(k=>$("e-"+k).value=r[k]||""); $("e-badge").value=r.badge||"";
+  const rv={...r,...names(r)};
+  F.forEach(k=>$("e-"+k).value=rv[k]||""); $("e-badge").value=r.badge||"";
   $("e-capacity").textContent=""; $("e-capacity").dataset.ack=""; showErrors({},"e-"); $("modal").hidden=false;
 }
 $("add").onclick=()=>openEdit(null);
 $("ecancel").onclick=()=>{$("modal").hidden=true; renderAdmin();};
 $("eform").addEventListener("submit",async ev=>{
   ev.preventDefault();
-  const v=readForm("e-"), e=validate(v,{future:false}); showErrors(e,"e-");
+  const v=readForm("e-"), e=validate(v,{future:false,orig:editId?{...data.find(x=>x.id===editId),...names(data.find(x=>x.id===editId))}:null}); showErrors(e,"e-");
   if(Object.keys(e).length) return;
   const r=clean(v); r.badge=$("e-badge").value;
   const chk=checkPeriod(r.du,r.au,data,editId);
@@ -938,8 +970,8 @@ function download(name,content,type){ const a=document.createElement("a"); a.hre
 $("exp-json").onclick=()=>download("parking614_sauvegarde_"+todayIso+".json",JSON.stringify({requests:data}),"application/json");
 $("exp-csv").onclick=()=>{
   const q=s=>'"'+String(s??"").replace(/"/g,'""')+'"';
-  const rows=[["NOM Prénom","Agence","Téléphone","Immatriculation","Modèle du Véhicule","Du","Au","Motif de la demande","Badge ?","Nb jours","Demandeur"]]
-   .concat(data.map(r=>[r.nom,r.agence,r.tel,r.immat,r.modele,fr(r.du),fr(r.au),r.motif,r.badge,nbDays(r),r.demandeur||""]));
+  const rows=[["Nom","Prénom","Agence","Téléphone","Immatriculation","Modèle du Véhicule","Du","Au","Motif de la demande","Badge ?","Nb jours","Demandeur","Commentaires"]]
+   .concat(data.map(r=>[names(r).nom,names(r).prenom,r.agence,r.tel,r.immat,r.modele,fr(r.du),fr(r.au),r.motif,r.badge,nbDays(r),r.demandeur||"",r.commentaires||""]));
   download("Stationnement_614_"+todayIso+".csv","﻿"+rows.map(r=>r.map(q).join(";")).join("\r\n"),"text/csv;charset=utf-8");
 };
 $("imp-json").onclick=()=>$("file").click();
@@ -958,17 +990,34 @@ function printSheet(r){
    <div class="band"><h1>Stationnement validé</h1><p>Agence 614 – à poser sur le tableau de bord, visible depuis le pare-brise</p></div>
    <div class="plate"><small>Immatriculation</small><b>${esc(r.immat)}</b><span>${esc(r.modele)}</span></div>
    <p class="period">Du ${fr(r.du)} au ${fr(r.au)} (${nbDays(r)} jour${nbDays(r)>1?"s":""})</p>
-   <dl><dt>NOM Prénom</dt><dd>${esc(r.nom)}</dd><dt>Agence</dt><dd>${esc(r.agence)}</dd><dt>Téléphone</dt><dd>${esc(fmtTel(r.tel))}</dd>
+   <dl><dt>Nom Prénom</dt><dd>${esc(fullName(r))}</dd><dt>Agence</dt><dd>${esc(r.agence)}</dd><dt>Téléphone</dt><dd>${esc(fmtTel(r.tel))}</dd>
    <dt>Motif de la demande</dt><dd>${esc(r.motif)}</dd></dl>
    <div class="foot">Demande validée le ${validated.toLocaleDateString("fr-FR")}. Cette fiche n'est valable que pour la période et le véhicule indiqués ci-dessus.</div>`;
   const old=document.title;
-  document.title=("Stationnement Validé "+r.nom+" "+r.immat).replace(/[\\\/:*?"<>|]+/g," ").replace(/\s+/g," ").trim();
+  document.title=("Stationnement Validé "+fullName(r)+" "+r.immat).replace(/[\\\/:*?"<>|]+/g," ").replace(/\s+/g," ").trim();
   const done=()=>{ document.title=old; window.removeEventListener("afterprint",done); };
   window.addEventListener("afterprint",done);
   const img=$("sheet").querySelector("img");
   const go=()=>window.print();
   if(img.complete) go(); else img.onload=go;
 }
+
+/* ---------- Saisie assistée et contrôle en direct ---------- */
+function filterInput(id,fn){ const el=$(id); el.addEventListener("input",()=>{ const s=el.selectionStart,v=fn(el.value); if(v!==el.value){ el.value=v; try{ el.setSelectionRange(s,s); }catch(x){} } }); }
+for(const p of ["","e-"]){
+  filterInput(p+"nom",v=>v.toUpperCase());                            // le nom s'affiche en majuscules
+  filterInput(p+"immat",v=>v.toUpperCase());
+  filterInput(p+"agence",v=>v.toUpperCase().replace(/[^A-Z0-9]/g,""));
+  filterInput(p+"tel",v=>v.replace(/[^\d\s.\-]/g,""));              // chiffres uniquement (séparateurs tolérés)
+}
+function telCount(){ const n=normTel($("tel").value).length, el=$("tel-cnt"); el.textContent=n?n+"/10 chiffres":""; el.className="cnt "+(n===10?"ok":n>10?"bad":""); }
+$("tel").addEventListener("input",telCount);
+$("commentaires").addEventListener("input",()=>{ $("com-cnt").textContent=$("commentaires").value.length+"/500"; });
+function liveCheck(k){ const e=validate(readForm(""),{future:true}), el=document.querySelector(`.err[data-for="${k}"]`); if(el){ el.textContent=e[k]||""; $(k).classList.toggle("invalid",!!e[k]); } }
+["nom","prenom","agence","tel","immat","modele","du","au","motif"].forEach(k=>{ const el=$(k);
+  el.addEventListener("blur",()=>{ el.dataset.t="1"; liveCheck(k); });
+  el.addEventListener("input",()=>{ if(el.dataset.t) liveCheck(k); });
+  el.addEventListener("change",()=>{ if(el.dataset.t) liveCheck(k); }); });
 
 /* ---------- Calendrier de sélection ---------- */
 let calMonth=new Date(); calMonth.setDate(1);
@@ -997,7 +1046,7 @@ $("cal").addEventListener("click",ev=>{
 });
 ["du","au"].forEach(i=>$(i).addEventListener("change",()=>{ const v=$("du").value; if(v&&v.slice(0,7)!==iso(calMonth).slice(0,7)&&i==="du"){ calMonth=new Date(parse(v).getFullYear(),parse(v).getMonth(),1);} renderCal(); }));
 document.querySelectorAll("input[type=date]").forEach(i=>i.addEventListener("click",()=>{ try{ i.showPicker(); }catch(e){} }));
-$("form").addEventListener("reset",()=>setTimeout(()=>{ renderCal(); fillDemandeurs(); },0));
+$("form").addEventListener("reset",()=>setTimeout(()=>{ renderCal(); telCount(); $("com-cnt").textContent="0/500"; document.querySelectorAll("#form [data-t]").forEach(x=>delete x.dataset.t); },0));
 
 /* ---------- Thème jour / nuit ---------- */
 function applyTheme(th){
