@@ -109,6 +109,10 @@ table.t{width:100%;border-collapse:collapse;font-size:13px}
 #sheet dd{margin:0}
 #sheet .period{font-size:26pt;font-weight:700;color:#002D72;margin:0 0 8mm}
 #sheet .foot{margin-top:14mm;padding-top:5mm;border-top:1.2mm solid #F5B800;font-size:12pt;color:#333}
+.steps{padding-left:1.3em;margin:8px 0 14px;list-style:none}
+.steps li{position:relative;margin:9px 0}
+.steps li::before{content:"";position:absolute;left:-1.3em;top:.5em;width:.55em;height:.55em;background:var(--blue)}
+nav #help-open{font-weight:400;text-decoration:underline}
 .mono{font-variant-numeric:tabular-nums}
 </style>
 </head>
@@ -119,6 +123,8 @@ table.t{width:100%;border-collapse:collapse;font-size:13px}
   <button role="tab" aria-selected="true" data-tab="demande">Faire une demande</button>
   <button role="tab" aria-selected="false" data-tab="parking">Occupation du parking</button>
   <button role="tab" aria-selected="false" data-tab="admin">Administration</button>
+  <span style="flex:1"></span>
+  <button type="button" id="help-open" style="color:var(--blue)">Aide : données à jour</button>
 </nav>
 
 <div id="sync" class="sync"></div>
@@ -241,6 +247,18 @@ table.t{width:100%;border-collapse:collapse;font-size:13px}
   <div id="e-capacity" class="err"></div>
   <p style="margin-top:14px;display:flex;gap:10px"><button class="btn" type="submit">Enregistrer</button><button type="button" class="btn sec" id="ecancel">Annuler</button></p>
 </form></div>
+<div class="modal" id="help" hidden role="dialog" aria-modal="true" aria-labelledby="help-t"><div class="card">
+  <h2 id="help-t">Avant de commencer : consulter des données à jour</h2>
+  <p>Les demandes sont stockées dans le fichier <b>parking614-data.js</b>, situé dans le même dossier réseau que cette page. Tous les utilisateurs partagent ce fichier.</p>
+  <ul class="steps">
+    <li><b>Ouvrez toujours la page depuis le dossier réseau</b>, avec Microsoft Edge ou Google Chrome. N'utilisez jamais une copie enregistrée sur votre poste, dans Téléchargements ou reçue en pièce jointe : elle afficherait des données périmées ou introuvables.</li>
+    <li><b>Les places libres se mettent à jour seules</b> à l'ouverture, toutes les minutes, et à chaque vérification de disponibilité.</li>
+    <li><b>Pour forcer la mise à jour</b>, cliquez sur « Actualiser » dans la bande bleu clair sous l'en-tête, ou appuyez sur F5. La date de dernière mise à jour y est affichée.</li>
+    <li><b>Si un message rouge « fichier de données introuvable » apparaît</b>, vérifiez que parking614-data.js est bien dans le même dossier que la page et que vous avez accès au dossier réseau (connexion ou VPN), puis cliquez sur « Réessayer ».</li>
+    <li><b>Au premier envoi d'une demande</b>, une fenêtre vous demande de sélectionner le fichier parking614-data.js du dossier réseau, puis d'autoriser la modification : choisissez « Modifier le fichier ». Sans cela, la demande n'est pas enregistrée.</li>
+  </ul>
+  <p style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><button type="button" class="btn" id="help-ok">J'ai compris</button><span class="hint">Cette aide est consultable à tout moment via « Aide : données à jour ».</span></p>
+</div></div>
 <div id="sheet" aria-hidden="true"></div>
 <div class="toast" id="toast" hidden></div>
 
@@ -682,6 +700,14 @@ function printSheet(r){
   const go=()=>window.print();
   if(img.complete) go(); else img.onload=go;
 }
+
+/* ---------- Aide à la première connexion ---------- */
+const HELP_KEY="parking614.help.v1";
+function openHelp(){ $("help").hidden=false; $("help-ok").focus(); }
+function closeHelp(){ $("help").hidden=true; try{ localStorage.setItem(HELP_KEY,"1"); }catch(e){} }
+$("help-open").onclick=openHelp; $("help-ok").onclick=closeHelp;
+document.addEventListener("keydown",e=>{ if(e.key==="Escape"&&!$("help").hidden) closeHelp(); });
+try{ if(!localStorage.getItem(HELP_KEY)) openHelp(); }catch(e){ openHelp(); }
 
 /* utilitaires */
 function esc(s){ return String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c])); }
