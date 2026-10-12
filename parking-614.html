@@ -59,6 +59,36 @@ textarea{min-height:84px;resize:vertical;font:14px var(--font)}
 .who{margin:0 0 4px;padding:8px 12px;background:var(--blue-10);border-left:6px solid var(--yellow)}
 .cnt{font-size:12px;color:var(--muted)}.cnt.ok{color:var(--head);font-weight:700}.cnt.bad{color:var(--ko)}
 td.cm{max-width:240px;white-space:normal;font-size:12px}
+main.wide{max-width:none}
+.sortb{background:none;border:0;color:inherit;font:inherit;font-weight:700;cursor:pointer;padding:0;white-space:nowrap}
+.sortb .ar{display:inline-block;min-width:12px;color:var(--yellow)}
+.t thead tr.flt th{background:var(--blue-10);padding:4px 5px}
+.t thead tr.flt input,.t thead tr.flt select{min-width:64px;font-size:12px;padding:4px 6px}
+.cal2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+@media(max-width:720px){.cal2{grid-template-columns:1fr}}
+.cal-h button{width:34px}
+.chart-flex{display:flex;border:1px solid var(--blue-25);margin-top:8px}
+#chartax{flex:0 0 40px;background:var(--surface)}
+.chart-scroll{overflow-x:auto;flex:1}
+:root{--bar:#002D72}
+:root[data-theme=dark]{--bar:#6f8fd0}
+.chart-flex .gl{stroke:var(--blue-25);stroke-width:1;opacity:.8}
+.chart-flex .ml{stroke:var(--blue-50);stroke-width:1}
+.chart-flex .wk{fill:var(--blue-10);opacity:.9}
+.chart-flex .bb{fill:var(--bar)}
+.chart-flex .bo{fill:var(--ko)}
+.chart-flex .hit{fill:transparent;cursor:pointer}
+.chart-flex .hit:hover{fill:rgba(245,184,0,.22)}
+.chart-flex .dl,.chart-flex .yt{font:10px var(--font);fill:var(--muted)}
+.chart-flex .dl.w{opacity:.7}
+.chart-flex .yt.cap{fill:var(--head);font-weight:700}
+.chart-flex .mt{font:700 12px var(--font);fill:var(--head)}
+.chart-flex .td{stroke:var(--yellow);stroke-width:2}
+.chart-flex .tdl{font:700 10px var(--font);fill:var(--head)}
+.chart-flex .capline{stroke:var(--ko);stroke-width:1.5;stroke-dasharray:5 4}
+#ctip{position:fixed;z-index:30;background:var(--surface);color:var(--ink);border:1px solid var(--blue-50);border-left:4px solid var(--yellow);padding:6px 10px;font-size:12px;pointer-events:none;box-shadow:0 2px 8px rgba(0,0,0,.25)}
+#ctip[hidden]{display:none}
+#chartpanel{margin-bottom:18px}
 .row2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
 .btn{background:var(--blue);color:#fff;border:0;border-bottom:3px solid var(--yellow);padding:11px 18px;font:700 14px var(--font);cursor:pointer;border-radius:2px}
 .btn:hover{background:var(--blue-75)}
@@ -191,7 +221,7 @@ body:not([data-auth=admin]) button[data-tab=admin]{display:none}
 </nav>
 
 <div id="sync" class="sync"></div>
-<main>
+<main id="main">
 <!-- ================= DEMANDE ================= -->
 <section id="tab-login">
   <div class="card" style="max-width:440px">
@@ -233,6 +263,9 @@ body:not([data-auth=admin]) button[data-tab=admin]{display:none}
     <label for="motif">Motif de la demande</label>
     <select id="motif"><option value="">— Choisir —</option><option>Personnel</option><option>Professionnel</option></select>
     <div class="err" data-for="motif"></div>
+    <label for="numbadge">Numéro de badge (facultatif)</label>
+    <input id="numbadge" maxlength="20" placeholder="Si vous en avez déjà un">
+    <div class="err" data-for="numbadge"></div>
     <label for="commentaires">Commentaires (facultatif)</label>
     <textarea id="commentaires" maxlength="500" placeholder="Texte libre : précisions utiles pour la demande de badge…"></textarea>
     <div class="cnt" id="com-cnt">0/500</div>
@@ -261,13 +294,31 @@ body:not([data-auth=admin]) button[data-tab=admin]{display:none}
       <h2>Statistiques</h2>
       <p class="hint">Cliquez sur une tuile pour afficher les demandes correspondantes.</p>
       <div class="kpis" id="kpis"></div>
+      <div id="chartpanel" class="card" hidden>
+        <div class="tools" style="margin-bottom:4px">
+          <h3 style="margin:0">Occupation journalière du parking</h3>
+          <span class="hint">places occupées par jour (sur 12) – faites défiler horizontalement</span>
+          <span style="flex:1"></span>
+          <button type="button" class="btn sec sm" id="ch-prev">◀ Mois précédent</button>
+          <button type="button" class="btn sec sm" id="ch-today">Aujourd'hui</button>
+          <button type="button" class="btn sec sm" id="ch-next">Mois suivant ▶</button>
+          <button type="button" class="btn sec sm" id="ch-close">Fermer</button>
+        </div>
+        <div class="legend">
+          <span><i style="background:var(--bar)"></i>Places occupées</span>
+          <span><i style="background:var(--ko)"></i>Au-delà de 12 places</span>
+          <span><i style="border-top:2px dashed var(--ko);height:0;width:16px;vertical-align:3px"></i>Capacité (12)</span>
+          <span><i style="background:var(--blue-10);border:1px solid var(--blue-25)"></i>Week-end</span>
+        </div>
+        <div class="chart-flex"><div id="chartax"></div><div class="chart-scroll" id="chartscroll"><div id="chartsvg"></div></div></div>
+        <div class="detail" id="chartdetail">Cliquez sur une barre pour voir les véhicules du jour.</div>
+      </div>
       <h2>Demandes</h2>
       <div class="tools">
         <input id="q" type="search" placeholder="Rechercher (nom, plaque, agence, demandeur…)" style="min-width:280px">
-        <select id="fbadge"><option value="">Tous les badges</option></select>
-        <select id="fmotif"><option value="">Tous motifs</option><option>Personnel</option><option>Professionnel</option></select>
         <label style="margin:0;display:flex;gap:6px;align-items:center;text-transform:none;font-weight:400"><input type="checkbox" id="ffuture" style="width:auto"> À venir / en cours</label>
         <span style="flex:1"></span>
+        <button class="btn sec sm" id="rstf">Réinitialiser filtres et tri</button>
         <button class="btn sm" id="add">+ Ajouter</button>
         <button class="btn sec sm" id="exp-csv">Export Excel (CSV)</button>
         <button class="btn sec sm" id="exp-json">Sauvegarde JSON</button>
@@ -343,6 +394,7 @@ body:not([data-auth=admin]) button[data-tab=admin]{display:none}
     <div><label for="e-motif">Motif</label><select id="e-motif"><option>Personnel</option><option>Professionnel</option></select></div>
     <div><label for="e-badge">Badge</label><select id="e-badge"></select></div>
   </div>
+  <label for="e-numbadge">Numéro de badge</label><input id="e-numbadge" maxlength="20"><div class="err" data-for="e-numbadge"></div>
   <label for="e-commentaires">Commentaires</label><textarea id="e-commentaires" maxlength="500"></textarea>
   <div id="e-capacity" class="err"></div>
   <p style="margin-top:14px;display:flex;gap:10px"><button class="btn" type="submit">Enregistrer</button><button type="button" class="btn sec" id="ecancel">Annuler</button></p>
@@ -371,6 +423,7 @@ body:not([data-auth=admin]) button[data-tab=admin]{display:none}
   <p style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><button type="button" class="btn" id="help-ok">J'ai compris</button><span class="hint">Cette aide est consultable à tout moment via « Aide : données à jour ».</span></p>
 </div></div>
 <div id="sheet" aria-hidden="true"></div>
+<div id="ctip" hidden></div>
 <div class="toast" id="toast" hidden></div>
 
 <script>
@@ -577,7 +630,8 @@ function validate(v,{future=true,orig=null}={}){
   if(!v.au) e.au="Date de fin obligatoire.";
   else if(v.du && v.au<v.du) e.au="La fin doit suivre le début.";
   if(!v.motif) e.motif="Motif obligatoire.";
-  if(orig) for(const k of ["nom","prenom","agence","tel","immat","modele","du","au"]) if(e[k] && String(orig[k]||"")===String(v[k]||"")) delete e[k];   // champs hérités non modifiés
+  if((v.numbadge||"").trim() && !/^[A-Za-z0-9][A-Za-z0-9 .\-_\/]{0,19}$/.test(v.numbadge.trim())) e.numbadge="Numéro de badge invalide (lettres, chiffres, tirets ; 20 caractères maximum).";
+  if(orig) for(const k of ["nom","prenom","agence","tel","immat","modele","du","au","numbadge"]) if(e[k] && String(orig[k]||"")===String(v[k]||"")) delete e[k];   // champs hérités non modifiés
   return e;
 }
 function showErrors(e,prefix=""){
@@ -590,8 +644,8 @@ function showErrors(e,prefix=""){
   });
 }
 const $ = id=>document.getElementById(id);
-function readForm(p=""){ const g=k=>$(p+k).value; return {demandeur:p?g("demandeur"):(session?session.nom:""),nom:g("nom"),prenom:g("prenom"),agence:g("agence"),tel:g("tel"),immat:g("immat"),modele:g("modele"),du:g("du"),au:g("au"),motif:g("motif"),commentaires:g("commentaires")}; }
-function clean(v){ return {demandeur:v.demandeur||"",nom:v.nom.trim().replace(/\s+/g," ").toUpperCase(),prenom:v.prenom.trim().replace(/\s+/g," "),agence:v.agence.trim().toUpperCase(),tel:normTel(v.tel),immat:v.immat.trim().toUpperCase(),modele:v.modele.trim(),du:v.du,au:v.au,motif:v.motif,commentaires:(v.commentaires||"").trim()}; }
+function readForm(p=""){ const g=k=>$(p+k).value; return {demandeur:p?g("demandeur"):(session?session.nom:""),nom:g("nom"),prenom:g("prenom"),agence:g("agence"),tel:g("tel"),immat:g("immat"),modele:g("modele"),du:g("du"),au:g("au"),motif:g("motif"),numbadge:g("numbadge"),commentaires:g("commentaires")}; }
+function clean(v){ return {demandeur:v.demandeur||"",nom:v.nom.trim().replace(/\s+/g," ").toUpperCase(),prenom:v.prenom.trim().replace(/\s+/g," "),agence:v.agence.trim().toUpperCase(),tel:normTel(v.tel),immat:v.immat.trim().toUpperCase(),modele:v.modele.trim(),du:v.du,au:v.au,motif:v.motif,numbadge:(v.numbadge||"").trim(),commentaires:(v.commentaires||"").trim()}; }
 /* Nom / prénom : les anciennes demandes ont « NOM Prénom » dans un seul champ → découpage à l'affichage (données non modifiées) */
 function splitName(s){
   const w=(s||"").trim().split(/\s+/).filter(Boolean);
@@ -610,7 +664,7 @@ const SESS="parking614.sess";
 let session=null, currentTab="login", pendingReset=null;
 try{ const m=location.hash.match(/reset=([^&]+)/); if(m) pendingReset=decodeURIComponent(m[1]).toLowerCase(); }catch(e){}
 function showTab(t){
-  currentTab=t;
+  currentTab=t; $("main").classList.toggle("wide",t==="admin");
   ["login","demande","admin"].forEach(x=>$("tab-"+x).hidden=x!==t);
   document.querySelectorAll("nav button[data-tab]").forEach(b=>b.setAttribute("aria-selected",b.dataset.tab===t));
   if(t==="admin") renderAdmin();
@@ -715,7 +769,7 @@ function mailContent(r){
   const lines=["Bonjour,","","Merci de configurer un badge pour le stationnement 614 :","",
    "Demandeur : "+who,"Nom : "+n.nom,"Prénom : "+n.prenom,"Agence : "+r.agence,"Téléphone : "+fmtTel(r.tel),"Immatriculation : "+r.immat,
    "Modèle du véhicule : "+r.modele,"Du : "+fr(r.du),"Au : "+fr(r.au),"Nombre de jours : "+nbDays(r),
-   "Motif de la demande : "+r.motif,"Commentaires : "+(r.commentaires||"—"),"","Disponibilité vérifiée dans l'outil de gestion du parking.","","Cordialement,",who];
+   "Motif de la demande : "+r.motif,"Numéro de badge : "+(r.numbadge||"—"),"Commentaires : "+(r.commentaires||"—"),"","Disponibilité vérifiée dans l'outil de gestion du parking.","","Cordialement,",who];
   return {subject,lines};
 }
 
@@ -818,9 +872,9 @@ $("park").addEventListener("click",ev=>{
   const c=ev.target.closest("[data-day]"); if(!c) return;
   dayDetail(c.dataset.day);
 });
-function dayDetail(k){
+function dayDetail(k,target){
   const list=data.filter(r=>k>=r.du&&k<=r.au);
-  $("daydetail").innerHTML=`<b>${fr(k)}</b> – ${list.length} véhicule${list.length>1?"s":""} sur ${CAPACITY} places, ${Math.max(CAPACITY-list.length,0)} libre${CAPACITY-list.length>1?"s":""}.`
+  $(target||"daydetail").innerHTML=`<b>${fr(k)}</b> – ${list.length} véhicule${list.length>1?"s":""} sur ${CAPACITY} places, ${Math.max(CAPACITY-list.length,0)} libre${CAPACITY-list.length>1?"s":""}.`
    +(list.length?`<ul>`+list.map(r=>`<li>${esc(fullName(r))} – ${esc(r.immat)} (${esc(r.modele)}) – agence ${esc(r.agence||"?")} – ${esc(r.motif)}, du ${fr(r.du)} au ${fr(r.au)} – demandeur : ${esc(r.demandeur||"—")}</li>`).join("")+`</ul>`:"");
 }
 
@@ -834,19 +888,16 @@ function setSub(s){
   ["dem","occ","usr"].forEach(x=>$("sub-"+x).hidden=x!==s);
   if(s==="occ") renderPark();
 }
-["q","fbadge","fmotif","ffuture"].forEach(i=>$(i).addEventListener("input",renderTable));
+["q","ffuture"].forEach(i=>$(i).addEventListener("input",renderTable));
 function renderAll(){
   renderCal(); fillDemandeurs();
   if(currentTab==="admin" && $("modal").hidden && $("pwmodal").hidden) renderAdmin();
 }
 function renderAdmin(){
   if(!session||session.role!=="admin") return;
-  const cur=$("fbadge").value;
   const badges=[...new Set([...BADGES,...data.map(r=>r.badge).filter(Boolean)])];
-  $("fbadge").innerHTML=`<option value="">Tous les badges</option>`+badges.map(b=>`<option>${esc(b)}</option>`).join("");
-  $("fbadge").value=cur;
   $("e-badge").innerHTML=`<option value="">—</option>`+badges.map(b=>`<option>${esc(b)}</option>`).join("");
-  renderKpis(); renderTable(); renderUsers();
+  renderKpis(); renderChart(); renderTable(); renderUsers();
   if(adminSub==="occ") renderPark();
 }
 /* tuiles cliquables : chacune filtre la liste des demandes */
@@ -869,32 +920,150 @@ function renderKpis(){
   const ds=[]; for(let i=1;i<=nd;i++) ds.push(occ[iso(new Date(y,m,i))]||0);
   const tk=occ[todayIso]||0, avg=Math.round(ds.reduce((a,b)=>a+b,0)/nd*10)/10, peak=Math.max(...ds), full=ds.filter(x=>x>=CAPACITY).length;
   const wait=data.filter(r=>r.badge==="Demande envoyée").length, up=data.filter(r=>r.au>=todayIso).length;
-  const T=(k,cls,val,lab)=>`<button type="button" class="kpi ${cls}${tile===k?" on":""}" data-tile="${k}" title="Afficher les demandes correspondantes"><b>${val}</b><small>${lab}</small></button>`;
+  const T=(k,cls,val,lab)=>`<button type="button" class="kpi ${cls}${(tile===k||((k==="avg"||k==="peak")&&chartOn))?" on":""}" data-tile="${k}" title="${k==="avg"||k==="peak"?"Afficher le graphique d'occupation journalière":"Afficher les demandes correspondantes"}"><b>${val}</b><small>${lab}</small></button>`;
   $("kpis").innerHTML=T("free","y",Math.max(CAPACITY-tk,0)+" / "+CAPACITY,"Places libres aujourd'hui")+T("avg","",avg,"Occupation moyenne – "+MONTHS[m])+T("peak","",peak,"Pic d'occupation – "+MONTHS[m])
    +T("full",full?"":"y",full,"Jour(s) complet(s) – "+MONTHS[m])+T("wait","y",wait,"Badges à configurer")+T("up","",up,"Demandes en cours / à venir")+T("all","",data.length,"Demandes au total");
 }
 $("kpis").addEventListener("click",ev=>{
-  const b=ev.target.closest("[data-tile]"); if(!b) return;
-  tile = tile===b.dataset.tile ? null : b.dataset.tile;
+  const b=ev.target.closest("[data-tile]"); if(!b) return; const k=b.dataset.tile;
+  if(k==="avg"||k==="peak"){                                   // tuiles « Occupation » : graphique journalier
+    chartOn=!chartOn; renderKpis(); renderChart();
+    if(chartOn){ if(!chartInit){ chartInit=true; requestAnimationFrame(()=>chartScrollToday()); } $("chartpanel").scrollIntoView({behavior:"smooth",block:"start"}); }
+    return;
+  }
+  tile = tile===k ? null : k;
   renderKpis(); renderTable();
   if(tile) $("tilebar").scrollIntoView({behavior:"smooth",block:"start"});
 });
 $("tilebar").addEventListener("click",ev=>{ if(ev.target.id==="tile-off"){ tile=null; renderKpis(); renderTable(); } });
+/* ----- Tableau des demandes : tri et filtre dans les en-têtes ----- */
+const COLS=[
+  {k:"demandeur",l:"Demandeur",t:"sel",get:r=>r.demandeur||""},
+  {k:"nom",l:"Nom",t:"txt",get:r=>names(r).nom},
+  {k:"prenom",l:"Prénom",t:"txt",get:r=>names(r).prenom},
+  {k:"numbadge",l:"N° badge",t:"txt",get:r=>r.numbadge||""},
+  {k:"agence",l:"Agence",t:"txt",get:r=>r.agence||""},
+  {k:"tel",l:"Téléphone",t:"txt",get:r=>r.tel||"",disp:r=>fmtTel(r.tel)},
+  {k:"immat",l:"Immat.",t:"txt",get:r=>r.immat||""},
+  {k:"modele",l:"Modèle",t:"txt",get:r=>r.modele||""},
+  {k:"du",l:"Du",t:"txt",get:r=>r.du||"",disp:r=>fr(r.du)},
+  {k:"au",l:"Au",t:"txt",get:r=>r.au||"",disp:r=>fr(r.au)},
+  {k:"jours",l:"Jours",t:"num",get:r=>nbDays(r)},
+  {k:"motif",l:"Motif",t:"sel",get:r=>r.motif||""},
+  {k:"badge",l:"Badge",t:"sel",get:r=>r.badge||""},
+  {k:"commentaires",l:"Commentaires",t:"txt",get:r=>r.commentaires||""}
+];
+let sortKey="du", sortDir=-1, headSig=""; const colF={};
+const disp=(c,r)=>String(c.disp?c.disp(r):c.get(r));
+function selOptions(c){ return [...new Set(data.map(r=>c.get(r)).filter(Boolean).concat(c.k==="badge"?BADGES:[]))].sort((a,b)=>a.localeCompare(b,"fr")); }
+function ensureHead(){
+  const sel=COLS.filter(c=>c.t==="sel").map(c=>selOptions(c));
+  const sig=JSON.stringify(sel);
+  if($("tbl").querySelector("thead") && sig===headSig) return;
+  headSig=sig;
+  const th=COLS.map(c=>`<th><button type="button" class="sortb" data-sort="${c.k}" title="Trier">${c.l} <span class="ar"></span></button></th>`).join("")+"<th></th>";
+  const fl=COLS.map(c=>{
+    const v=colF[c.k]||"";
+    if(c.t==="sel") return `<th><select data-f="${c.k}"><option value="">Tous</option>${selOptions(c).map(o=>`<option${o===v?" selected":""}>${esc(o)}</option>`).join("")}</select></th>`;
+    return `<th><input data-f="${c.k}" value="${esc(v)}" placeholder="${c.t==="num"?"ex. >5":"Filtrer"}" autocomplete="off"></th>`;
+  }).join("")+"<th></th>";
+  $("tbl").innerHTML=`<thead><tr>${th}</tr><tr class="flt">${fl}</tr></thead><tbody></tbody>`;
+  sortArrows();
+}
+function sortArrows(){ document.querySelectorAll("#tbl .sortb").forEach(b=>{ b.querySelector(".ar").textContent=b.dataset.sort===sortKey?(sortDir>0?"▲":"▼"):""; }); }
+function matchCol(c,r,f){
+  if(!f) return true;
+  if(c.t==="sel") return c.get(r)===f;
+  if(c.t==="num"){ const m=f.trim().match(/^(>=|<=|>|<|=)?\s*(\d+)$/); if(!m) return String(c.get(r)).includes(f.trim()); const n=+m[2], v=c.get(r);
+    return m[1]===">"?v>n:m[1]==="<"?v<n:m[1]===">="?v>=n:m[1]==="<="?v<=n:v===n; }
+  const hay=(disp(c,r)+(c.k==="tel"?" "+(r.tel||""):"")).toLowerCase();
+  return hay.includes(f.trim().toLowerCase());
+}
 function renderTable(){
   if(!session||session.role!=="admin") return;
-  const q=$("q").value.trim().toLowerCase(), fb=$("fbadge").value, fm=$("fmotif").value, ff=$("ffuture").checked;
+  ensureHead();
+  const q=$("q").value.trim().toLowerCase(), ff=$("ffuture").checked;
   const td=tile?tileDef(tile):null;
   $("tilebar").innerHTML = td?`<span class="chip">Filtre : ${esc(td.label)} <button type="button" class="btn sm sec" id="tile-off">Retirer le filtre</button></span>`:"";
-  let list=data.filter(r=>(!td||td.fn(r))&&(!fb||r.badge===fb)&&(!fm||r.motif===fm)&&(!ff||r.au>=todayIso)
-    &&(!q||[fullName(r),r.immat,r.agence,r.modele,r.tel,r.demandeur,r.commentaires].join(" ").toLowerCase().includes(q)));
-  list=[...list].sort((a,b)=>b.du.localeCompare(a.du));
+  let list=data.filter(r=>(!td||td.fn(r))&&(!ff||r.au>=todayIso)
+    &&(!q||[fullName(r),r.immat,r.agence,r.modele,r.tel,r.demandeur,r.numbadge,r.commentaires].join(" ").toLowerCase().includes(q))
+    &&COLS.every(c=>matchCol(c,r,colF[c.k])));
+  const sc=COLS.find(c=>c.k===sortKey);
+  list=[...list].sort((a,b)=>{
+    const x=sc.get(a), y=sc.get(b), ex=x===""||x==null, ey=y===""||y==null;
+    if(ex||ey) return ex===ey?0:(ex?1:-1);                       // vides toujours en dernier
+    const c=typeof x==="number"?x-y:String(x).localeCompare(String(y),"fr",{sensitivity:"base",numeric:true});
+    return c*sortDir || b.du.localeCompare(a.du);
+  });
+  sortArrows();
   $("count").textContent=list.length+" demande(s) affichée(s) sur "+data.length+".";
-  $("tbl").innerHTML=`<thead><tr><th>Demandeur</th><th>Nom</th><th>Prénom</th><th>Agence</th><th>Téléphone</th><th>Immat.</th><th>Modèle</th><th>Du</th><th>Au</th><th>Jours</th><th>Motif</th><th>Badge</th><th>Commentaires</th><th></th></tr></thead><tbody>`+
-   list.map(r=>`<tr><td>${esc(r.demandeur||"—")}</td><td>${esc(names(r).nom)}</td><td>${esc(names(r).prenom)}</td><td>${esc(r.agence)}</td><td class="mono">${esc(fmtTel(r.tel))}</td><td>${esc(r.immat)}</td><td>${esc(r.modele)}</td><td>${fr(r.du)}</td><td>${fr(r.au)}</td><td>${nbDays(r)}</td><td>${esc(r.motif)}</td>
-   <td>${r.badge?`<span class="tag ${r.badge==="Demande envoyée"?"wait":""}">${esc(r.badge)}</span>`:""}</td>
-   <td class="cm" title="${esc(r.commentaires||"")}">${esc(r.commentaires||"")}</td>
-   <td style="white-space:nowrap"><button class="btn sm sec" data-edit="${r.id}">Éditer</button> <button class="btn sm sec" data-print="${r.id}">Fiche PDF</button> <button class="btn sm danger" data-del="${r.id}">Supprimer</button></td></tr>`).join("")+"</tbody>";
+  const cell=(c,r)=>{ const v=disp(c,r);
+    if(c.k==="badge") return `<td>${r.badge?`<span class="tag ${r.badge==="Demande envoyée"?"wait":""}">${esc(r.badge)}</span>`:""}</td>`;
+    if(c.k==="commentaires") return `<td class="cm" title="${esc(v)}">${esc(v)}</td>`;
+    if(c.k==="demandeur") return `<td>${esc(v||"—")}</td>`;
+    return `<td${c.k==="tel"?' class="mono"':""}>${esc(v)}</td>`; };
+  $("tbl").querySelector("tbody").innerHTML=list.map(r=>`<tr>${COLS.map(c=>cell(c,r)).join("")}<td style="white-space:nowrap"><button class="btn sm sec" data-edit="${r.id}">Éditer</button> <button class="btn sm sec" data-print="${r.id}">Fiche PDF</button> <button class="btn sm danger" data-del="${r.id}">Supprimer</button></td></tr>`).join("");
 }
+$("tbl").addEventListener("click",ev=>{
+  const b=ev.target.closest("[data-sort]"); if(!b) return;
+  const k=b.dataset.sort;
+  if(sortKey!==k){ sortKey=k; sortDir=1; } else if(sortDir===1) sortDir=-1; else { sortKey="du"; sortDir=-1; }
+  renderTable();
+});
+$("tbl").addEventListener("input",ev=>{ const f=ev.target.dataset&&ev.target.dataset.f; if(!f) return; colF[f]=ev.target.value; renderTable(); });
+$("rstf").onclick=()=>{ for(const k in colF) delete colF[k]; $("q").value=""; $("ffuture").checked=false; tile=null; sortKey="du"; sortDir=-1; headSig=""; renderKpis(); renderTable(); };
+
+/* ----- Graphique d'occupation journalière (barres, défilable sur tous les mois) ----- */
+let chartOn=false, chartInit=false;
+const STEP=19, BW=15, CH=300, CT=28, CB=52;
+function chartRange(){
+  const occ=occupancy(data), ks=Object.keys(occ).sort(), now=new Date();
+  let a=ks.length?parse(ks[0]):now, z=ks.length?parse(ks[ks.length-1]):now;
+  if(now<a) a=now; const zz=addDays(now,62); if(zz>z) z=zz;
+  return {occ,start:new Date(a.getFullYear(),a.getMonth(),1),end:new Date(z.getFullYear(),z.getMonth()+1,0)};
+}
+function renderChart(){
+  const panel=$("chartpanel"); panel.hidden=!chartOn; if(!chartOn) return;
+  const {occ,start,end}=chartRange(), days=[]; for(let d=new Date(start); d<=end; d=addDays(d,1)) days.push(new Date(d));
+  const maxv=Math.max(CAPACITY,...days.map(d=>occ[iso(d)]||0)), ymax=Math.ceil((maxv+1)/2)*2;
+  const plotH=CH-CT-CB, y=v=>CT+plotH*(1-v/ymax), W=days.length*STEP+8, base=CT+plotH;
+  let grid="", wk="", bars="", hits="", lab="";
+  for(let v=0;v<=ymax;v+=2) grid+=`<line x1="0" x2="${W}" y1="${y(v)}" y2="${y(v)}" class="gl"/>`;
+  days.forEach((d,i)=>{
+    const k=iso(d), n=occ[k]||0, x=4+i*STEP, dow=d.getDay();
+    if(dow===0||dow===6) wk+=`<rect x="${x-1}" y="${CT}" width="${BW+2}" height="${plotH}" class="wk"/>`;
+    if(n>0){ const h=plotH*n/ymax, r=Math.min(4,h), yy=y(n);
+      bars+=`<path class="${n>CAPACITY?"bo":"bb"}" d="M${x},${base}V${yy+r}Q${x},${yy} ${x+r},${yy}H${x+BW-r}Q${x+BW},${yy} ${x+BW},${yy+r}V${base}Z"/>`; }
+    hits+=`<rect x="${x-1}" y="${CT}" width="${BW+2}" height="${plotH+22}" class="hit" data-k="${k}"/>`;
+    lab+=`<text x="${x+BW/2}" y="${base+14}" class="dl${dow===0||dow===6?" w":""}" text-anchor="middle">${d.getDate()}</text>`;
+    if(d.getDate()===1){ grid+=`<line x1="${x-2.5}" x2="${x-2.5}" y1="${CT}" y2="${base+44}" class="ml"/>`; lab+=`<text x="${x}" y="${base+38}" class="mt">${MONTHS[d.getMonth()]} ${d.getFullYear()}</text>`; }
+    if(k===todayIso) lab+=`<line x1="${x+BW/2}" x2="${x+BW/2}" y1="${CT-8}" y2="${base}" class="td"/><text x="${x+BW/2}" y="${CT-12}" class="tdl" text-anchor="middle">Aujourd'hui</text>`;
+  });
+  const cap=`<line class="capline" x1="0" x2="${W}" y1="${y(CAPACITY)}" y2="${y(CAPACITY)}"/>`;
+  const sc=$("chartscroll"), keep=sc.scrollLeft;
+  $("chartax").innerHTML=`<svg width="40" height="${CH}" aria-hidden="true">`+Array.from({length:ymax/2+1},(_,i)=>i*2).map(v=>`<text x="34" y="${y(v)+4}" text-anchor="end" class="yt${v===CAPACITY?" cap":""}">${v}</text>`).join("")+`</svg>`;
+  $("chartsvg").innerHTML=`<svg width="${W}" height="${CH}" role="img" aria-label="Places occupées par jour, de ${fr(iso(start))} à ${fr(iso(end))}">${grid}${wk}${bars}${cap}${lab}${hits}</svg>`;
+  sc.scrollLeft=keep;
+}
+function chartIdx(d){ return Math.round((d-chartRange().start)/864e5); }
+function chartScrollToday(){ const sc=$("chartscroll"); sc.scrollLeft=Math.max(0,chartIdx(new Date(new Date().setHours(0,0,0,0)))*STEP-sc.clientWidth/2); }
+function chartMonth(dir){
+  const {start}=chartRange(), sc=$("chartscroll"), d=addDays(start,Math.round(sc.scrollLeft/STEP));
+  const tgt=new Date(d.getFullYear(),d.getMonth()+dir+(dir>0?0:(d.getDate()>3?1:0)),1);
+  sc.scrollTo({left:Math.max(0,chartIdx(tgt)*STEP),behavior:"smooth"});
+}
+$("ch-prev").onclick=()=>chartMonth(-1); $("ch-next").onclick=()=>chartMonth(1);
+$("ch-today").onclick=()=>{ const sc=$("chartscroll"); sc.scrollTo({left:Math.max(0,chartIdx(new Date(new Date().setHours(0,0,0,0)))*STEP-sc.clientWidth/2),behavior:"smooth"}); };
+$("ch-close").onclick=()=>{ chartOn=false; renderKpis(); renderChart(); };
+$("chartsvg").addEventListener("click",ev=>{ const h=ev.target.closest("[data-k]"); if(h) dayDetail(h.dataset.k,"chartdetail"); });
+$("chartsvg").addEventListener("mousemove",ev=>{
+  const h=ev.target.closest("[data-k]"), tip=$("ctip");
+  if(!h){ tip.hidden=true; return; }
+  const k=h.dataset.k, n=occupancy(data)[k]||0, d=parse(k), J=["dim.","lun.","mar.","mer.","jeu.","ven.","sam."];
+  tip.innerHTML=`<b>${J[d.getDay()]} ${fr(k)}</b><br>${n} / ${CAPACITY} places occupées · ${Math.max(CAPACITY-n,0)} libre${CAPACITY-n>1?"s":""}${n>CAPACITY?" · <b>surcharge</b>":""}`;
+  tip.hidden=false; tip.style.left=Math.min(ev.clientX+14,innerWidth-230)+"px"; tip.style.top=(ev.clientY+14)+"px";
+});
+$("chartsvg").addEventListener("mouseleave",()=>{ $("ctip").hidden=true; });
 $("tbl").addEventListener("click",async ev=>{
   const e=ev.target.dataset.edit, d=ev.target.dataset.del, pr=ev.target.dataset.print;
   if(e) openEdit(e);
@@ -904,7 +1073,7 @@ $("tbl").addEventListener("click",async ev=>{
       try{ await commit(l=>{ l.requests=l.requests.filter(x=>x.id!==d); }); toast("Demande supprimée."); }catch(er){ toast("Suppression impossible : "+saveErr(er)); } } }
 });
 let editId=null;
-const F=["demandeur","nom","prenom","agence","tel","immat","modele","du","au","motif","commentaires"];
+const F=["demandeur","nom","prenom","agence","tel","immat","modele","du","au","motif","numbadge","commentaires"];
 function openEdit(id){
   editId=id; const r=id?data.find(x=>x.id===id):{demandeur:session?session.nom:"",nom:"",agence:"",tel:"",immat:"",modele:"",du:"",au:"",motif:"Personnel",badge:"Ok paramétré"};
   fillDemandeurs();
@@ -1022,8 +1191,8 @@ function download(name,content,type){ const a=document.createElement("a"); a.hre
 $("exp-json").onclick=()=>download("parking614_sauvegarde_"+todayIso+".json",JSON.stringify({requests:data}),"application/json");
 $("exp-csv").onclick=()=>{
   const q=s=>'"'+String(s??"").replace(/"/g,'""')+'"';
-  const rows=[["Nom","Prénom","Agence","Téléphone","Immatriculation","Modèle du Véhicule","Du","Au","Motif de la demande","Badge ?","Nb jours","Demandeur","Commentaires"]]
-   .concat(data.map(r=>[names(r).nom,names(r).prenom,r.agence,r.tel,r.immat,r.modele,fr(r.du),fr(r.au),r.motif,r.badge,nbDays(r),r.demandeur||"",r.commentaires||""]));
+  const rows=[["Nom","Prénom","Agence","Téléphone","Immatriculation","Modèle du Véhicule","Du","Au","Motif de la demande","Badge ?","Nb jours","Demandeur","Numéro de badge","Commentaires"]]
+   .concat(data.map(r=>[names(r).nom,names(r).prenom,r.agence,r.tel,r.immat,r.modele,fr(r.du),fr(r.au),r.motif,r.badge,nbDays(r),r.demandeur||"",r.numbadge||"",r.commentaires||""]));
   download("Stationnement_614_"+todayIso+".csv","﻿"+rows.map(r=>r.map(q).join(";")).join("\r\n"),"text/csv;charset=utf-8");
 };
 $("imp-json").onclick=()=>$("file").click();
@@ -1066,7 +1235,7 @@ function telCount(){ const n=normTel($("tel").value).length, el=$("tel-cnt"); el
 $("tel").addEventListener("input",telCount);
 $("commentaires").addEventListener("input",()=>{ $("com-cnt").textContent=$("commentaires").value.length+"/500"; });
 function liveCheck(k){ const e=validate(readForm(""),{future:true}), el=document.querySelector(`.err[data-for="${k}"]`); if(el){ el.textContent=e[k]||""; $(k).classList.toggle("invalid",!!e[k]); } }
-["nom","prenom","agence","tel","immat","modele","du","au","motif"].forEach(k=>{ const el=$(k);
+["nom","prenom","agence","tel","immat","modele","du","au","motif","numbadge"].forEach(k=>{ const el=$(k);
   el.addEventListener("blur",()=>{ el.dataset.t="1"; liveCheck(k); });
   el.addEventListener("input",()=>{ if(el.dataset.t) liveCheck(k); });
   el.addEventListener("change",()=>{ if(el.dataset.t) liveCheck(k); }); });
@@ -1074,10 +1243,9 @@ function liveCheck(k){ const e=validate(readForm(""),{future:true}), el=document
 /* ---------- Calendrier de sélection ---------- */
 let calMonth=new Date(); calMonth.setDate(1);
 function setDates(du,au){ $("du").value=du; $("au").value=au; if(du) $("au").min=du; $("du").dispatchEvent(new Event("input")); renderCal(); }
-function renderCal(){
-  const y=calMonth.getFullYear(), m=calMonth.getMonth(), nd=new Date(y,m+1,0).getDate(), lead=(new Date(y,m,1).getDay()+6)%7;
-  const occ=occupancy(data), du=$("du").value, au=$("au").value;
-  let h=`<div class="cal-h"><button type="button" class="btn sec sm" id="cprev" aria-label="Mois précédent">◀</button><span>${MONTHS[m]} ${y}</span><button type="button" class="btn sec sm" id="cnext" aria-label="Mois suivant">▶</button></div><div class="cal-g">`;
+function monthGrid(y,m,occ,du,au,left,right){
+  const nd=new Date(y,m+1,0).getDate(), lead=(new Date(y,m,1).getDay()+6)%7, sp='<span style="width:34px"></span>';
+  let h=`<div class="cal-m"><div class="cal-h">${left?`<button type="button" class="btn sec sm" id="cprev" aria-label="Mois précédent">◀</button>`:sp}<span>${MONTHS[m]} ${y}</span>${right?`<button type="button" class="btn sec sm" id="cnext" aria-label="Mois suivant">▶</button>`:sp}</div><div class="cal-g">`;
   ["L","M","M","J","V","S","D"].forEach(d=>h+=`<div class="dow">${d}</div>`);
   for(let i=0;i<lead;i++) h+="<span></span>";
   for(let d=1;d<=nd;d++){
@@ -1085,7 +1253,11 @@ function renderCal(){
     const cls=[free<1?"full":free<4?"mid":"",k===todayIso?"today":"",(du&&k===du)||(au&&k===au)?"sel":"",du&&au&&k>=du&&k<=au?"in":""].join(" ").trim();
     h+=`<button type="button" data-k="${k}" class="${cls}" ${past?"disabled":""} title="${fr(k)} : ${Math.max(free,0)} place(s) libre(s)">${d}<small>${Math.max(free,0)}</small></button>`;
   }
-  $("cal").innerHTML=h+"</div>";
+  return h+"</div></div>";
+}
+function renderCal(){
+  const occ=occupancy(data), du=$("du").value, au=$("au").value, y=calMonth.getFullYear(), m=calMonth.getMonth(), n=new Date(y,m+1,1);
+  $("cal").innerHTML=`<div class="cal2">`+monthGrid(y,m,occ,du,au,true,false)+monthGrid(n.getFullYear(),n.getMonth(),occ,du,au,false,true)+`</div>`;
   $("cprev").onclick=()=>{calMonth=new Date(y,m-1,1);renderCal();};
   $("cnext").onclick=()=>{calMonth=new Date(y,m+1,1);renderCal();};
 }
@@ -1096,7 +1268,7 @@ $("cal").addEventListener("click",ev=>{
   else if(k<du) setDates(k,"");
   else setDates(du,k);
 });
-["du","au"].forEach(i=>$(i).addEventListener("change",()=>{ const v=$("du").value; if(v&&v.slice(0,7)!==iso(calMonth).slice(0,7)&&i==="du"){ calMonth=new Date(parse(v).getFullYear(),parse(v).getMonth(),1);} renderCal(); }));
+["du","au"].forEach(i=>$(i).addEventListener("change",()=>{ const v=$("du").value; if(v&&i==="du"){ const m1=iso(calMonth).slice(0,7), m2=iso(new Date(calMonth.getFullYear(),calMonth.getMonth()+1,1)).slice(0,7), vm=v.slice(0,7); if(vm!==m1&&vm!==m2) calMonth=new Date(parse(v).getFullYear(),parse(v).getMonth(),1); } renderCal(); }));
 document.querySelectorAll("input[type=date]").forEach(i=>i.addEventListener("click",()=>{ try{ i.showPicker(); }catch(e){} }));
 $("form").addEventListener("reset",()=>setTimeout(()=>{ renderCal(); telCount(); $("com-cnt").textContent="0/500"; document.querySelectorAll("#form [data-t]").forEach(x=>delete x.dataset.t); },0));
 
