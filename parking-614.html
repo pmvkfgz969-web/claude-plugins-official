@@ -814,10 +814,11 @@ async function recordRequest(r,pick){
   toast("Demande enregistrée. Relisez et envoyez le brouillon dans Outlook.");
   $("form").reset();
   $("result").innerHTML=`<div class="result"><h3>Demande validée et enregistrée</h3><p>Les dates sont réservées dans le parking partagé, en attente de configuration du badge. Finalisez en envoyant le brouillon de message ouvert dans Outlook.</p>
-    <p><button class="btn" id="print">Imprimer / enregistrer la fiche en PDF (A4)</button></p>
-    <p class="hint">À poser sur le tableau de bord du véhicule pendant le stationnement. Dans la fenêtre d'impression, choisissez « Enregistrer au format PDF » : le fichier se nomme « Stationnement Validé ${esc(fullName(r))} ${esc(r.immat)} ».</p>
+    <p><button class="btn" id="pdf">Télécharger la fiche PDF (A4)</button> <button class="btn sec" id="print">Imprimer la fiche</button></p>
+    <p class="hint">À poser sur le tableau de bord du véhicule pendant le stationnement. Le fichier téléchargé se nomme « ${esc(fileTitle(r))}.pdf ».</p>
     <p class="hint"><a href="${esc(mailHref(r))}">Rouvrir le brouillon</a> · <a href="#" id="eml2">Télécharger en .eml</a> · <a href="#" id="copy2">Copier le texte</a></p></div>`;
   const saved=data.slice().reverse().find(x=>x.immat===r.immat&&x.du===r.du&&x.au===r.au)||r;
+  $("pdf").onclick=()=>downloadPdf(saved);
   $("print").onclick=()=>printSheet(saved);
   $("eml2").onclick=ev=>{ev.preventDefault(); downloadEml(r);};
   $("copy2").onclick=ev=>{ev.preventDefault(); copyMail(r);};
@@ -1067,7 +1068,7 @@ $("chartsvg").addEventListener("mouseleave",()=>{ $("ctip").hidden=true; });
 $("tbl").addEventListener("click",async ev=>{
   const e=ev.target.dataset.edit, d=ev.target.dataset.del, pr=ev.target.dataset.print;
   if(e) openEdit(e);
-  if(pr){ const r=data.find(x=>x.id===pr); if(r) printSheet(r); }
+  if(pr){ const r=data.find(x=>x.id===pr); if(r) downloadPdf(r); }
   if(d){ const r=data.find(x=>x.id===d);
     if(r&&confirm("Supprimer la demande de "+fullName(r)+" ("+fr(r.du)+" → "+fr(r.au)+") ?")){
       try{ await commit(l=>{ l.requests=l.requests.filter(x=>x.id!==d); }); toast("Demande supprimée."); }catch(er){ toast("Suppression impossible : "+saveErr(er)); } } }
@@ -1205,6 +1206,80 @@ $("file").onchange=()=>{ const f=$("file").files[0]; if(!f) return; const rd=new
 
 
 /* ---------- Fiche A4 à poser sur le tableau de bord ---------- */
+const fileTitle = r => ("Stationnement Validé "+fullName(r)+" "+r.immat).replace(/[\\\/:*?"<>|]+/g," ").replace(/\s+/g," ").trim();
+
+/* Fiche au format PDF générée directement par l'outil (sans passer par la fenêtre d'impression du navigateur) */
+function cp1252(s){
+  const sp={0x152:0x8C,0x153:0x9C,0x20AC:0x80,0x2018:0x91,0x2019:0x92,0x201C:0x93,0x201D:0x94,0x2013:0x96,0x2014:0x97,0x2026:0x85,0x160:0x8A,0x161:0x9A,0x17D:0x8E,0x17E:0x9E,0x178:0x9F};
+  const out=[]; for(const ch of String(s)){ const c=ch.codePointAt(0); out.push(c<256?c:(sp[c]||63)); } return out;
+}
+const pdfHex = s => "<"+cp1252(s).map(b=>b.toString(16).padStart(2,"0")).join("")+">";
+const _cv = document.createElement("canvas").getContext("2d");
+function tw(s,size,bold){ _cv.font=(bold?"bold ":"")+size+"px Arial, Helvetica, sans-serif"; return _cv.measureText(s).width; }
+function fit(s,size,bold,maxW){ while(size>8 && tw(s,size,bold)>maxW) size-=0.5; return size; }
+function wrapText(s,size,maxW){ const lines=[]; let cur=""; for(const w of s.split(" ")){ const x=cur?cur+" "+w:w; if(cur&&tw(x,size,false)>maxW){ lines.push(cur); cur=w; } else cur=x; } if(cur) lines.push(cur); return lines; }
+async function logoJpeg(){
+  const img=$("logo"); if(!img.complete) await new Promise(res=>{ img.onload=res; });
+  const cv=document.createElement("canvas"); cv.width=img.naturalWidth; cv.height=img.naturalHeight;
+  const g=cv.getContext("2d"); g.fillStyle="#fff"; g.fillRect(0,0,cv.width,cv.height); g.drawImage(img,0,0);
+  const blob=await new Promise(res=>cv.toBlob(res,"image/jpeg",0.95));
+  return {w:cv.width,h:cv.height,bytes:new Uint8Array(await blob.arrayBuffer())};
+}
+async function buildPdf(r){
+  const W=595.28, H=841.89, M=34, CW=W-2*M, n=names(r), dys=nbDays(r), c=[];
+  const col=h=>{ const v=parseInt(h.slice(1),16); return [(v>>16)&255,(v>>8)&255,v&255].map(x=>(x/255).toFixed(3)).join(" "); };
+  const f2=x=>x.toFixed(2);
+  const rect=(x,y,w,h,fill)=>c.push(`${col(fill)} rg ${f2(x)} ${f2(y)} ${f2(w)} ${f2(h)} re f`);
+  const frame=(x,y,w,h,stroke,lw)=>c.push(`${col(stroke)} RG ${lw} w ${f2(x)} ${f2(y)} ${f2(w)} ${f2(h)} re S`);
+  const text=(s,x,y,size,bold,color)=>c.push(`BT /${bold?"F2":"F1"} ${size} Tf ${col(color)} rg ${f2(x)} ${f2(y)} Td ${pdfHex(s)} Tj ET`);
+  const BLUE="#002D72", YEL="#F5B800";
+  const jpg=await logoJpeg(), lw=195, lh=lw*jpg.h/jpg.w;
+  c.push(`q ${f2(lw)} 0 0 ${f2(lh)} ${f2(W-M-lw)} ${f2(H-M-lh)} cm /Im1 Do Q`);
+  const bandTop=H-M-lh-23, bandH=100;
+  rect(M,bandTop-bandH,CW,bandH,BLUE); rect(M,bandTop-bandH-7,CW,7,YEL);
+  text("Stationnement validé",M+28,bandTop-52,34,true,"#FFFFFF");
+  const sub="Agence 614 – à poser sur le tableau de bord, visible depuis le pare-brise";
+  text(sub,M+28,bandTop-78,fit(sub,13,false,CW-56),false,"#BFCBDC");
+  const plateTop=bandTop-bandH-7-28, plateH=135;
+  frame(M+1.7,plateTop-plateH+1.7,CW-3.4,plateH-3.4,BLUE,3.4);
+  text("IMMATRICULATION",M+28,plateTop-34,12,true,BLUE);
+  text(r.immat,M+28,plateTop-92,fit(r.immat,56,true,CW-56),true,BLUE);
+  text(r.modele,M+28,plateTop-120,fit(r.modele,18,false,CW-56),false,"#000000");
+  let y=plateTop-plateH-42;
+  const per=`Du ${fr(r.du)} au ${fr(r.au)} (${dys} jour${dys>1?"s":""})`;
+  text(per,M,y,fit(per,24,true,CW),true,BLUE); y-=46;
+  for(const [l,v] of [["Nom Prénom",(n.nom+" "+n.prenom).trim()],["Agence",r.agence],["Téléphone",fmtTel(r.tel)],["Motif de la demande",r.motif]]){
+    text(l,M,y,16,true,BLUE); text(v,M+190,y,fit(v,16,false,CW-190),false,"#000000"); y-=30;
+  }
+  rect(M,128,CW,3.4,YEL);
+  const validated=(r.createdAt?new Date(r.createdAt):new Date()).toLocaleDateString("fr-FR");
+  wrapText(`Demande validée le ${validated}. Cette fiche n'est valable que pour la période et le véhicule indiqués ci-dessus.`,11,CW).forEach((ln,i)=>text(ln,M,108-i*15,11,false,"#333333"));
+  // assemblage du fichier
+  const enc=s=>Uint8Array.from(cp1252(s)), parts=[], offs=[]; let len=0;
+  const push=u=>{ parts.push(u); len+=u.length; };
+  const obj=(i,head,stream)=>{ offs[i]=len; push(enc(`${i} 0 obj\n${head}\n`)); if(stream){ push(enc("stream\n")); push(stream); push(enc("\nendstream\n")); } push(enc("endobj\n")); };
+  push(enc("%PDF-1.4\n%âãÏÓ\n"));
+  const content=enc(c.join("\n"));
+  const title="\uFEFF"+fileTitle(r), tHex="<"+[...title].map(ch=>ch.charCodeAt(0).toString(16).padStart(4,"0")).join("")+">";
+  obj(1,"<< /Type /Catalog /Pages 2 0 R >>");
+  obj(2,"<< /Type /Pages /Kids [3 0 R] /Count 1 >>");
+  obj(3,`<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${W} ${H}] /Resources << /Font << /F1 4 0 R /F2 5 0 R >> /XObject << /Im1 7 0 R >> >> /Contents 6 0 R >>`);
+  obj(4,"<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>");
+  obj(5,"<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding >>");
+  obj(6,`<< /Length ${content.length} >>`,content);
+  obj(7,`<< /Type /XObject /Subtype /Image /Width ${jpg.w} /Height ${jpg.h} /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length ${jpg.bytes.length} >>`,jpg.bytes);
+  obj(8,`<< /Title ${tHex} /Producer (Parking 614) >>`);
+  const xr=len;
+  push(enc("xref\n0 9\n0000000000 65535 f \n"+offs.slice(1).map(o=>String(o).padStart(10,"0")+" 00000 n \n").join("")+`trailer\n<< /Size 9 /Root 1 0 R /Info 8 0 R >>\nstartxref\n${xr}\n%%EOF\n`));
+  return new Blob(parts,{type:"application/pdf"});
+}
+async function downloadPdf(r){
+  try{
+    const blob=await buildPdf(r), a=document.createElement("a");
+    a.href=URL.createObjectURL(blob); a.download=fileTitle(r)+".pdf";
+    document.body.appendChild(a); a.click(); a.remove(); setTimeout(()=>URL.revokeObjectURL(a.href),10000);
+  }catch(e){ toast("Création du PDF impossible : "+(e.message||e)+". Utilisez « Imprimer la fiche »."); }
+}
 function printSheet(r){
   const validated=r.createdAt?new Date(r.createdAt):new Date();
   $("sheet").innerHTML=`<div class="top"><img src="${$("logo").src}" alt="DACHSER Intelligent Logistics"></div>
@@ -1215,7 +1290,7 @@ function printSheet(r){
    <dt>Motif de la demande</dt><dd>${esc(r.motif)}</dd></dl>
    <div class="foot">Demande validée le ${validated.toLocaleDateString("fr-FR")}. Cette fiche n'est valable que pour la période et le véhicule indiqués ci-dessus.</div>`;
   const old=document.title;
-  document.title=("Stationnement Validé "+fullName(r)+" "+r.immat).replace(/[\\\/:*?"<>|]+/g," ").replace(/\s+/g," ").trim();
+  document.title=fileTitle(r);
   const done=()=>{ document.title=old; window.removeEventListener("afterprint",done); };
   window.addEventListener("afterprint",done);
   const img=$("sheet").querySelector("img");
