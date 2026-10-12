@@ -288,6 +288,7 @@ body:not([data-auth=admin]) button[data-tab=admin]{display:none}
       <button type="button" data-sub="dem" aria-selected="true">Demandes</button>
       <button type="button" data-sub="occ" aria-selected="false">Occupation du parking</button>
       <button type="button" data-sub="usr" aria-selected="false">Utilisateurs</button>
+      <button type="button" data-sub="set" aria-selected="false">Paramètres</button>
     </div>
 
     <div id="sub-dem">
@@ -346,6 +347,18 @@ body:not([data-auth=admin]) button[data-tab=admin]{display:none}
   </div>
   <div class="scroll"><table class="park" id="park"></table></div>
   <div class="detail" id="daydetail">Cliquez sur un jour (en-tête) ou sur une place occupée pour voir le détail.</div>
+    </div>
+
+    <div id="sub-set" hidden>
+      <h2>Paramètres</h2>
+      <form class="card" id="setform" novalidate style="max-width:760px">
+        <h3>Destinataires des demandes de configuration de badge</h3>
+        <label for="s-to">Adresses e-mail (séparées par un point-virgule)</label>
+        <textarea id="s-to" rows="3" placeholder="prenom.nom@dachser.com; autre.personne@dachser.com" autocomplete="off"></textarea>
+        <p class="hint">Ces adresses sont renseignées dans le champ « À » du brouillon de mail créé quand un utilisateur envoie sa demande. Le changement s'applique à tous les postes dès l'enregistrement.</p>
+        <div class="err" id="s-err"></div>
+        <p><button class="btn" type="submit">Enregistrer</button></p>
+      </form>
     </div>
 
     <div id="sub-usr" hidden>
@@ -430,7 +443,9 @@ body:not([data-auth=admin]) button[data-tab=admin]{display:none}
 "use strict";
 /* ---------- Paramètres ---------- */
 const CAPACITY = 12;
-const MAIL_TO = "frederick.pocreaux@dachser.com";
+const MAIL_TO = "frederick.pocreaux@dachser.com";      // administrateur : destinataire des mots de passe perdus
+const DEFAULT_TO = ["frederick.pocreaux@dachser.com"];  // destinataires par défaut des demandes de badge (modifiables dans Administration > Paramètres)
+const badgeTo = () => { const v=db.settings&&db.settings.mailTo; const a=(Array.isArray(v)?v:String(v||"").split(/[;,\s]+/)).map(x=>x.trim()).filter(Boolean); return a.length?a:DEFAULT_TO; };
 const DATA_FILE = "parking614-data.js";      // fichier de données partagé, dans le même dossier que cette page
 const BADGES = ["Demande envoyée","Ok paramétré","Accès permanent"];
 
@@ -750,7 +765,7 @@ $("form").addEventListener("submit",async ev=>{
     $("result").innerHTML=`<div class="result"><h3>Places disponibles sur toute la période</h3>
       <p>Minimum de <b>${res.minFree} place${res.minFree>1?"s":""} libre${res.minFree>1?"s":""}</b> sur ${CAPACITY} pendant la période demandée.</p>${legend}
       <p><a class="btn" id="send" href="${esc(mailHref(req))}">Envoyer ma demande de configuration de badge</a></p>
-      <p class="hint">Un brouillon de message à l'attention de ${MAIL_TO} s'ouvre dans votre messagerie (Outlook) avec tous les éléments. <b>Rien n'est envoyé automatiquement</b> : relisez-le puis cliquez vous-même sur Envoyer.</p>
+      <p class="hint">Un brouillon de message à l'attention de ${esc(badgeTo().join(", "))} s'ouvre dans votre messagerie (Outlook) avec tous les éléments. <b>Rien n'est envoyé automatiquement</b> : relisez-le puis cliquez vous-même sur Envoyer.</p>
       <p class="hint">Le brouillon ne s'ouvre pas ? <a href="#" id="eml">Télécharger le message (.eml) pour l'ouvrir dans Outlook</a> · <a href="#" id="copy">Copier le texte du message</a></p></div>`;
     $("send").onclick=()=>{ recordRequest(req); };
     $("eml").onclick=ev=>{ev.preventDefault(); downloadEml(req);};
@@ -773,10 +788,10 @@ function mailContent(r){
   return {subject,lines};
 }
 
-const mailHref = r => { const {subject,lines}=mailContent(r); return "mailto:"+MAIL_TO+"?subject="+encodeURIComponent(subject)+"&body="+encodeURIComponent(lines.join("\r\n")); };
+const mailHref = r => { const {subject,lines}=mailContent(r); return "mailto:"+badgeTo().join(",")+"?subject="+encodeURIComponent(subject)+"&body="+encodeURIComponent(lines.join("\r\n")); };
 function downloadEml(r){
   const {subject,lines}=mailContent(r);
-  const eml=["To: "+MAIL_TO,"Subject: "+encodeMime(subject),"X-Unsent: 1","MIME-Version: 1.0",
+  const eml=["To: "+badgeTo().join(", "),"Subject: "+encodeMime(subject),"X-Unsent: 1","MIME-Version: 1.0",
     'Content-Type: text/plain; charset="utf-8"',"Content-Transfer-Encoding: base64","",
     b64(lines.join("\r\n")).replace(/(.{76})/g,"$1\r\n")].join("\r\n");
   const a=document.createElement("a");
@@ -785,7 +800,7 @@ function downloadEml(r){
   document.body.appendChild(a); a.click(); a.remove();
 }
 async function copyMail(r){
-  const {subject,lines}=mailContent(r), txt="À : "+MAIL_TO+"\nObjet : "+subject+"\n\n"+lines.join("\n");
+  const {subject,lines}=mailContent(r), txt="À : "+badgeTo().join("; ")+"\nObjet : "+subject+"\n\n"+lines.join("\n");
   try{ await navigator.clipboard.writeText(txt); toast("Message copié : collez-le dans un nouveau mail Outlook."); }
   catch(e){ const ta=document.createElement("textarea"); ta.value=txt; document.body.appendChild(ta); ta.select(); try{document.execCommand("copy"); toast("Message copié : collez-le dans un nouveau mail Outlook.");}catch(x){toast("Copie impossible.");} ta.remove(); }
 }
@@ -886,7 +901,7 @@ document.querySelectorAll(".subnav button").forEach(b=>b.onclick=()=>setSub(b.da
 function setSub(s){
   adminSub=s;
   document.querySelectorAll(".subnav button").forEach(b=>b.setAttribute("aria-selected",b.dataset.sub===s));
-  ["dem","occ","usr"].forEach(x=>$("sub-"+x).hidden=x!==s);
+  ["dem","occ","usr","set"].forEach(x=>$("sub-"+x).hidden=x!==s);
   if(s==="occ") renderPark();
 }
 ["q","ffuture"].forEach(i=>$(i).addEventListener("input",renderTable));
@@ -898,7 +913,7 @@ function renderAdmin(){
   if(!session||session.role!=="admin") return;
   const badges=[...new Set([...BADGES,...data.map(r=>r.badge).filter(Boolean)])];
   $("e-badge").innerHTML=`<option value="">—</option>`+badges.map(b=>`<option>${esc(b)}</option>`).join("");
-  renderKpis(); renderChart(); renderTable(); renderUsers();
+  renderKpis(); renderChart(); renderTable(); renderUsers(); renderSettings();
   if(adminSub==="occ") renderPark();
 }
 /* tuiles cliquables : chacune filtre la liste des demandes */
@@ -1100,6 +1115,26 @@ $("eform").addEventListener("submit",async ev=>{
     await commit(l=>{ if(editId){ const t=l.requests.find(x=>x.id===editId); if(!t) throw new Error("demande supprimée entre-temps"); Object.assign(t,r); } else l.requests.push({id:uid(),...r}); });
     $("modal").hidden=true; renderAdmin(); toast("Enregistré.");
   }catch(er){ toast("Enregistrement impossible : "+saveErr(er)); }
+});
+
+/* ---------- Paramètres : destinataires des demandes de badge ---------- */
+function renderSettings(){
+  const el=$("s-to"); if(el.dataset.dirty||document.activeElement===el) return;
+  el.value=badgeTo().join("; ");
+}
+$("s-to").addEventListener("input",()=>{ $("s-to").dataset.dirty="1"; $("s-err").textContent=""; });
+$("setform").addEventListener("submit",async ev=>{
+  ev.preventDefault(); const er=$("s-err");
+  const list=[...new Set($("s-to").value.split(/[;,\s]+/).map(x=>x.trim().toLowerCase()).filter(Boolean))];
+  const bad=list.filter(x=>!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(x));
+  if(!list.length){ er.textContent="Indiquez au moins une adresse e-mail."; return; }
+  if(bad.length){ er.textContent="Adresse invalide : "+bad.join(", "); return; }
+  if(list.length>20){ er.textContent="20 adresses maximum."; return; }
+  er.textContent="";
+  try{
+    await commit(l=>{ l.settings={...(l.settings||{}),mailTo:list}; });
+    delete $("s-to").dataset.dirty; $("s-to").value=list.join("; "); toast("Destinataires enregistrés : "+list.join(", "));
+  }catch(x){ er.textContent="Enregistrement impossible : "+saveErr(x); }
 });
 
 /* ---------- Utilisateurs (demandeurs et administrateurs) ---------- */
