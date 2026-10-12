@@ -366,7 +366,7 @@ body:not([data-auth=admin]) button[data-tab=admin]{display:none}
     <li><b>Pour forcer la mise à jour</b>, cliquez sur « Actualiser » dans la bande bleu clair sous l'en-tête, ou appuyez sur F5. La date de dernière mise à jour y est affichée.</li>
     <li><b>Si un message rouge « fichier de données introuvable » apparaît</b>, vérifiez que parking614-data.js est bien dans le même dossier que la page et que vous avez accès au dossier réseau (connexion ou VPN), puis cliquez sur « Réessayer ».</li>
     <li><b>Connexion</b> : utilisez votre login <b>prenom.nom@dachser.com</b>. Mot de passe perdu ? Cliquez sur « Mot de passe perdu ? » sur l'écran de connexion : un brouillon de mail à l'attention de l'administrateur s'ouvre.</li>
-    <li><b>Au premier envoi d'une demande</b>, une fenêtre vous demande de sélectionner le fichier parking614-data.js du dossier réseau, puis d'autoriser la modification : choisissez « Modifier le fichier ». Sans cela, la demande n'est pas enregistrée.</li>
+    <li><b>Autoriser l'enregistrement (une fois par poste)</b> : cliquez sur « Autoriser l'enregistrement » dans la bande sous l'en-tête, sélectionnez le fichier parking614-data.js du dossier réseau, puis acceptez « Modifier le fichier ». Sans cela, aucune demande n'est enregistrée. Le bouton réapparaît si le navigateur redemande l'autorisation.</li>
   </ul>
   <p style="display:flex;gap:10px;align-items:center;flex-wrap:wrap"><button type="button" class="btn" id="help-ok">J'ai compris</button><span class="hint">Cette aide est consultable à tout moment via « Aide : données à jour ».</span></p>
 </div></div>
@@ -407,54 +407,91 @@ function setSync(){
   const el=$("sync");
   if(!loaded){ el.className="sync bad"; el.innerHTML="Fichier de données <b>"+DATA_FILE+"</b> introuvable : il doit se trouver dans le même dossier que cette page. <button class='btn sec sm' id='rf'>Réessayer</button>"; }
   else { const t=db.updatedAt?new Date(db.updatedAt).toLocaleString("fr-FR"):"—";
-    el.className="sync"; el.innerHTML="Données partagées : "+data.length+" demandes · dernière mise à jour "+t+" <button class='btn sec sm' id='rf'>Actualiser</button>"; }
+    el.className="sync"; el.innerHTML="Données partagées : "+data.length+" demandes · dernière mise à jour "+t+" <button class='btn sec sm' id='rf'>Actualiser</button> "
+      +(writeReady?"<b>Enregistrement autorisé ✓</b>":"<button class='btn sm' id='connect' title='Sélectionnez parking614-data.js dans le dossier partagé'>Autoriser l'enregistrement</button>"); }
   $("rf").onclick=refresh;
+  if($("connect")) $("connect").onclick=connectFile;
 }
 
-/* IndexedDB : mémorise le fichier autorisé en écriture */
+/* ---------- Accès en écriture au fichier partagé ----------
+   Le navigateur n'ouvre la fenêtre de sélection de fichier qu'au clic direct de l'utilisateur :
+   on la déclenche donc toujours en premier geste (bouton « Autoriser l'enregistrement »). */
 const idb=()=>new Promise((res,rej)=>{const r=indexedDB.open("parking614",1);r.onupgradeneeded=()=>r.result.createObjectStore("h");r.onsuccess=()=>res(r.result);r.onerror=()=>rej(r.error)});
 async function getH(){try{const d=await idb();return await new Promise(r=>{const q=d.transaction("h").objectStore("h").get("file");q.onsuccess=()=>r(q.result);q.onerror=()=>r(null)})}catch(e){return null}}
 async function setH(h){try{const d=await idb();d.transaction("h","readwrite").objectStore("h").put(h,"file")}catch(e){}}
-async function clearH(){ fileHandle=null; try{ const d=await idb(); d.transaction("h","readwrite").objectStore("h").delete("file"); }catch(e){} }
-/* force=true : ignore le fichier mémorisé (introuvable, déplacé ou remplacé) et redemande de le sélectionner */
-async function ensureWritable(force){
-  if(!window.showOpenFilePicker) throw new Error("navigateur non compatible : utilisez Microsoft Edge ou Google Chrome");
-  let h=force?null:(fileHandle||await getH());
-  if(h){
-    try{ let p=await h.queryPermission({mode:"readwrite"}); if(p!=="granted") p=await h.requestPermission({mode:"readwrite"});
-      if(p==="granted"){ fileHandle=h; return h; } }catch(e){}
-  }
-  const [nh]=await showOpenFilePicker({types:[{description:"Fichier de données du parking",accept:{"text/javascript":[".js"]}}],multiple:false});
-  if(nh.name!==DATA_FILE) throw new Error("sélectionnez le fichier "+DATA_FILE+" du dossier partagé");
-  if(await nh.requestPermission({mode:"readwrite"})!=="granted") throw new Error("autorisation d'écriture refusée");
-  await readHandle(nh);   // vérifie que le fichier est lisible
-  await setH(nh); fileHandle=nh; return nh;
-}
+async function clearH(){ fileHandle=null; writeReady=false; try{ const d=await idb(); d.transaction("h","readwrite").objectStore("h").delete("file"); }catch(e){} }
+let writeReady=false, pendingHandle=null;
+const needPick = m => { const e=new Error(m||"autorisation d'enregistrement requise"); e.name="NeedPick"; return e; };
 async function readHandle(h){
   const t=await (await h.getFile()).text();
   return JSON.parse(t.slice(t.indexOf("=")+1).replace(/;\s*$/,""));
 }
-/* Relit la dernière version du fichier, applique la modification, réécrit : limite les écrasements entre utilisateurs */
-async function commit(mutator){
-  for(let attempt=0;;attempt++){
-    const h=await ensureWritable(attempt>0);
-    try{
-      const latest=normalize(await readHandle(h));
-      mutator(latest);
-      latest.updatedAt=new Date().toISOString();
-      const w=await h.createWritable(); await w.write(serialize(latest)); await w.close();
-      db=latest; data=db.requests; loaded=true; setSync(); renderAll();
-      return latest;
-    }catch(e){
-      // fichier mémorisé devenu invalide (déplacé, remplacé, autre dossier) : on le oublie et on redemande une fois
-      if(attempt===0 && e && ["NotFoundError","NotAllowedError","InvalidStateError","NoModificationAllowedError"].includes(e.name)){ await clearH(); continue; }
-      throw e;
+/* Au chargement : réutilise silencieusement le fichier déjà autorisé, s'il est encore valide */
+async function probeHandle(){
+  try{
+    const h=await getH();
+    if(h){
+      const p=await h.queryPermission({mode:"readwrite"});
+      if(p==="granted"){ await readHandle(h); fileHandle=h; writeReady=true; }
+      else pendingHandle=h;
     }
+  }catch(e){ await clearH(); }
+  setSync();
+}
+/* Ouvre la fenêtre de sélection : DOIT être appelée directement depuis un clic */
+async function pickFile(){
+  if(!window.showOpenFilePicker) throw new Error("navigateur non compatible : utilisez Microsoft Edge ou Google Chrome");
+  const [nh]=await showOpenFilePicker({types:[{description:"Fichier de données du parking",accept:{"text/javascript":[".js"]}}],multiple:false});
+  if(nh.name!==DATA_FILE) throw new Error("sélectionnez le fichier "+DATA_FILE+" du dossier partagé");
+  await readHandle(nh);                                   // vérifie que le fichier est lisible
+  try{ await nh.requestPermission({mode:"readwrite"}); }catch(e){}
+  await setH(nh); fileHandle=nh; pendingHandle=null; writeReady=true; setSync();
+  return nh;
+}
+/* Clic sur « Autoriser l'enregistrement » */
+async function connectFile(){
+  try{
+    if(pendingHandle){                                    // fichier déjà choisi lors d'une session précédente : simple autorisation
+      const h=pendingHandle;
+      const p=await h.requestPermission({mode:"readwrite"});
+      if(p==="granted"){ try{ await readHandle(h); fileHandle=h; pendingHandle=null; writeReady=true; setSync(); toast("Enregistrement autorisé."); return; }catch(e){} }
+      pendingHandle=null; await clearH(); setSync();
+      toast("Fichier mémorisé introuvable ou refusé : cliquez à nouveau pour sélectionner parking614-data.js.");
+      return;
+    }
+    await pickFile(); toast("Enregistrement autorisé.");
+  }catch(e){ toast("Autorisation impossible : "+saveErr(e)); }
+}
+async function readyHandle(){
+  if(fileHandle) return fileHandle;
+  const h=pendingHandle||await getH();
+  if(!h) throw needPick();
+  let p=await h.queryPermission({mode:"readwrite"});
+  if(p!=="granted"){ try{ p=await h.requestPermission({mode:"readwrite"}); }catch(e){} }
+  if(p!=="granted") throw needPick();
+  fileHandle=h; writeReady=true; return h;
+}
+/* Relit la dernière version du fichier, applique la modification, réécrit : limite les écrasements entre utilisateurs */
+async function commit(mutator,pick){
+  const h = pick ? await pickFile() : await readyHandle();
+  try{
+    const latest=normalize(await readHandle(h));
+    mutator(latest);
+    latest.updatedAt=new Date().toISOString();
+    const w=await h.createWritable(); await w.write(serialize(latest)); await w.close();
+    db=latest; data=db.requests; loaded=true; setSync(); renderAll();
+    return latest;
+  }catch(e){
+    if(e && ["NotFoundError","NotAllowedError","InvalidStateError","NoModificationAllowedError","SecurityError"].includes(e.name)){
+      await clearH(); setSync();
+      throw needPick(e.name==="NotFoundError"?"fichier de données introuvable":"autorisation d'écriture refusée");
+    }
+    throw e;
   }
 }
 const saveErr = e => !e ? "erreur inconnue" : e.name==="AbortError" ? "sélection du fichier annulée" :
-  e.name==="NotFoundError" ? "fichier de données introuvable : sélectionnez parking614-data.js dans le dossier partagé" :
-  e.name==="NotAllowedError" ? "autorisation d'écriture refusée sur parking614-data.js" : (e.message||"erreur inconnue");
+  e.name==="NeedPick" ? (e.message||"autorisation requise")+" : cliquez sur « Autoriser l'enregistrement » dans le bandeau sous l'en-tête, sélectionnez parking614-data.js, puis recommencez" :
+  (e.message||"erreur inconnue");
 
 /* ---------- Comptes ---------- */
 const hex=b=>[...b].map(x=>x.toString(16).padStart(2,"0")).join("");
@@ -700,21 +737,23 @@ async function copyMail(r){
 }
 /* Le brouillon Outlook s'ouvre au clic (lien mailto) ; l'enregistrement dans le fichier partagé se fait en parallèle. */
 let recorded=null;
-async function recordRequest(r){
+async function recordRequest(r,pick){
   const key=r.immat+r.du+r.au;
   if(busy||recorded===key) return; busy=true;
   try{
     await commit(l=>{
       if(!checkPeriod(r.du,r.au,l.requests).ok) throw new Error("FULL");
       l.requests.push({id:uid(),...r,badge:"Demande envoyée",createdAt:new Date().toISOString()});
-    });
+    },pick);
   }catch(e){
     busy=false;
-    const full=e.message==="FULL";
-    $("result").innerHTML=`<div class="result ko"><h3>${full?"Parking complet entre-temps":"Demande non enregistrée dans le fichier partagé"}</h3>
-      <p>${full?"Une autre demande vient de remplir le parking sur cette période. <b>N'envoyez pas le brouillon de message ouvert</b> et relancez la vérification.":"Raison : "+esc(saveErr(e))+". Le brouillon de message a pu s'ouvrir, mais les dates ne sont pas réservées tant que l'enregistrement n'a pas abouti."}</p>
-      ${full?"":`<p><button class="btn" id="retry">Réessayer l'enregistrement</button></p>`}</div>`;
-    if(!full) $("retry").onclick=()=>recordRequest(r);
+    const full=e.message==="FULL", need=e.name==="NeedPick"||e.name==="AbortError";
+    $("result").innerHTML=`<div class="result ko"><h3>${full?"Parking complet entre-temps":need?"Autorisation d'enregistrement requise":"Demande non enregistrée dans le fichier partagé"}</h3>
+      <p>${full?"Une autre demande vient de remplir le parking sur cette période. <b>N'envoyez pas le brouillon de message ouvert</b> et relancez la vérification.":
+        need?"Pour enregistrer la demande dans le fichier partagé, cliquez sur le bouton ci-dessous, sélectionnez <b>"+DATA_FILE+"</b> dans le dossier réseau puis acceptez « Modifier le fichier ». Le brouillon de message a pu s'ouvrir, mais les dates ne sont pas réservées tant que l'enregistrement n'a pas abouti."
+        :"Raison : "+esc(saveErr(e))+". Le brouillon de message a pu s'ouvrir, mais les dates ne sont pas réservées tant que l'enregistrement n'a pas abouti."}</p>
+      ${full?"":`<p><button class="btn" id="retry">${need?"Sélectionner le fichier et enregistrer":"Réessayer l'enregistrement"}</button></p>`}</div>`;
+    if(!full) $("retry").onclick=()=>recordRequest(r,need);
     return;
   }
   busy=false; recorded=key;
@@ -1083,7 +1122,7 @@ function esc(s){ return String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&
 let tt; function toast(m){ const t=$("toast"); t.textContent=m; t.hidden=false; clearTimeout(tt); tt=setTimeout(()=>t.hidden=true,4500); }
 
 
-applyAuth(); renderCal(); refresh(); setInterval(()=>{ if(!busy && $("modal").hidden && $("pwmodal").hidden) refresh(); },60000);
+applyAuth(); renderCal(); refresh().then(probeHandle); setInterval(()=>{ if(!busy && $("modal").hidden && $("pwmodal").hidden) refresh(); },60000);
 </script>
 </body>
 </html>
