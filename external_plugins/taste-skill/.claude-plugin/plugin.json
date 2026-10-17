@@ -1,0 +1,9 @@
+{
+  "name": "taste-skill",
+  "description": "Anti-slop frontend skill (tasteskill v2): art direction for landing pages, portfolios and marketing sites, with a real-browser inspector and a screenshot look-and-fix loop.",
+  "author": {
+    "name": "Leonxlnx"
+  },
+  "homepage": "https://github.com/Leonxlnx/taste-skill",
+  "license": "MIT"
+}

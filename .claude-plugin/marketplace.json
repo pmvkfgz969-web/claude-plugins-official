@@ -4421,6 +4421,16 @@
         "sha": "10573bac239b7062a476667eaa574d400335c70e"
       },
       "homepage": "https://github.com/amzn/selling-partner-agentic-toolkit"
+    },
+    {
+      "name": "taste-skill",
+      "description": "Anti-slop frontend skill (tasteskill v2): art direction for landing pages, portfolios and marketing sites, with a real-browser inspector and a screenshot look-and-fix loop.",
+      "author": {
+        "name": "Leonxlnx"
+      },
+      "source": "./external_plugins/taste-skill",
+      "category": "design",
+      "homepage": "https://github.com/Leonxlnx/taste-skill"
     }
   ]
 }
